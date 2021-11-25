@@ -5,25 +5,25 @@ defmodule LibPE.Checksum do
   @max_long 0xFFFFFFFF
   @max_long_long 0xFFFFFFFFFFFFFFFF
 
-  # prepare alignment, remove checksum, add length
-  def checksum(binary, checksum_offset) do
-    <<pre_amble::binary-size(checksum_offset), _checksum::little-size(16), rest::binary>> = binary
-
-    new_binary = pre_amble <> rest
-    new_binary = String.pad_trailing(new_binary, ceil(byte_size(new_binary) / 2) * 2, <<0>>)
-
-    rem(chk_sum(new_binary) + (byte_size(binary) &&& @max_long), @max_long_long)
+  @doc """
+    binary_size is provided so embedded `checksum` values can be removed
+    before running and added afterwards again.
+  """
+  def checksum(binary, binary_size) do
+    # ensure alignment
+    new_binary = String.pad_trailing(binary, ceil(byte_size(binary) / 2) * 2, <<0>>)
+    rem(do_checksum(new_binary) + (binary_size &&& @max_long), @max_long_long)
   end
 
-  def chk_sum(partial_sum \\ 0, source) do
+  defp do_checksum(partial_sum \\ 0, source) do
     partial_sum =
       for(<<source_word::little-size(16) <- source>>, do: source_word)
       |> Enum.reduce(partial_sum, fn source_word, partial_sum ->
-        partial_sum = partial_sum + source_word
-        partial_sum = (partial_sum >>> 16 &&& @max_long) + (partial_sum &&& @max_word)
-        partial_sum
+        partial_sum = rem(partial_sum + source_word, @max_long)
+        partial_sum = (partial_sum >>> 16) + (partial_sum &&& @max_word)
+        rem(partial_sum, @max_long)
       end)
 
-    (partial_sum >>> 16) + partial_sum &&& @max_word
+    rem((partial_sum >>> 16) + partial_sum, @max_long) &&& @max_word
   end
 end

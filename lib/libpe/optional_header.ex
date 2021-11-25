@@ -133,7 +133,7 @@ defmodule LibPE.OptionalHeader do
           minor_image_version::little-size(16), major_subsystem_version::little-size(16),
           minor_subsystem_version::little-size(16), win32_version_value::little-size(32),
           size_of_image::little-size(32), size_of_headers::little-size(32),
-          checksum::little-size(16), subsystem::little-size(16),
+          checksum::little-size(32), subsystem::little-size(16),
           dll_characteristics::little-size(16), size_of_stack_reserve::little-size(32),
           size_of_stack_commit::little-size(32), size_of_heap_reserve::little-size(32),
           size_of_heap_commit::little-size(32), loader_flags::little-size(32),
@@ -208,7 +208,7 @@ defmodule LibPE.OptionalHeader do
   end
 
   def encode_windows_extra(%OptionalHeader{
-        magic: @magic_pe,
+        magic: magic,
         image_base: image_base,
         section_alignment: section_alignment,
         file_alignment: file_alignment,
@@ -234,55 +234,34 @@ defmodule LibPE.OptionalHeader do
     subsystem = LibPE.WindowsSubsystem.encode(subsystem)
     dll_characteristics = LibPE.DLLCharacteristics.encode(dll_characteristics)
 
-    <<image_base::little-size(32), section_alignment::little-size(32),
-      file_alignment::little-size(32), major_operating_system::little-size(16),
-      minor_operating_system::little-size(16), major_image_version::little-size(16),
-      minor_image_version::little-size(16), major_subsystem_version::little-size(16),
-      minor_subsystem_version::little-size(16), win32_version_value::little-size(32),
-      size_of_image::little-size(32), size_of_headers::little-size(32), checksum::little-size(16),
-      subsystem::little-size(16), dll_characteristics::little-size(16),
-      size_of_stack_reserve::little-size(32), size_of_stack_commit::little-size(32),
-      size_of_heap_reserve::little-size(32), size_of_heap_commit::little-size(32),
-      loader_flags::little-size(32), number_of_rva_and_sizes::little-size(32)>>
-  end
+    # this allows creating a new checksum
+    case magic do
+      @magic_pe ->
+        <<image_base::little-size(32), section_alignment::little-size(32),
+          file_alignment::little-size(32), major_operating_system::little-size(16),
+          minor_operating_system::little-size(16), major_image_version::little-size(16),
+          minor_image_version::little-size(16), major_subsystem_version::little-size(16),
+          minor_subsystem_version::little-size(16), win32_version_value::little-size(32),
+          size_of_image::little-size(32), size_of_headers::little-size(32),
+          checksum::little-size(32), subsystem::little-size(16),
+          dll_characteristics::little-size(16), size_of_stack_reserve::little-size(32),
+          size_of_stack_commit::little-size(32), size_of_heap_reserve::little-size(32),
+          size_of_heap_commit::little-size(32), loader_flags::little-size(32),
+          number_of_rva_and_sizes::little-size(32)>>
 
-  def encode_windows_extra(%OptionalHeader{
-        magic: @magic_pe_plus,
-        image_base: image_base,
-        section_alignment: section_alignment,
-        file_alignment: file_alignment,
-        major_operating_system: major_operating_system,
-        minor_operating_system: minor_operating_system,
-        major_image_version: major_image_version,
-        minor_image_version: minor_image_version,
-        major_subsystem_version: major_subsystem_version,
-        minor_subsystem_version: minor_subsystem_version,
-        win32_version_value: win32_version_value,
-        size_of_image: size_of_image,
-        size_of_headers: size_of_headers,
-        checksum: checksum,
-        subsystem: subsystem,
-        dll_characteristics: dll_characteristics,
-        size_of_stack_reserve: size_of_stack_reserve,
-        size_of_stack_commit: size_of_stack_commit,
-        size_of_heap_reserve: size_of_heap_reserve,
-        size_of_heap_commit: size_of_heap_commit,
-        loader_flags: loader_flags,
-        number_of_rva_and_sizes: number_of_rva_and_sizes
-      }) do
-    subsystem = LibPE.WindowsSubsystem.encode(subsystem)
-    dll_characteristics = LibPE.DLLCharacteristics.encode(dll_characteristics)
-
-    <<image_base::little-size(64), section_alignment::little-size(32),
-      file_alignment::little-size(32), major_operating_system::little-size(16),
-      minor_operating_system::little-size(16), major_image_version::little-size(16),
-      minor_image_version::little-size(16), major_subsystem_version::little-size(16),
-      minor_subsystem_version::little-size(16), win32_version_value::little-size(32),
-      size_of_image::little-size(32), size_of_headers::little-size(32), checksum::little-size(32),
-      subsystem::little-size(16), dll_characteristics::little-size(16),
-      size_of_stack_reserve::little-size(64), size_of_stack_commit::little-size(64),
-      size_of_heap_reserve::little-size(64), size_of_heap_commit::little-size(64),
-      loader_flags::little-size(32), number_of_rva_and_sizes::little-size(32)>>
+      @magic_pe_plus ->
+        <<image_base::little-size(64), section_alignment::little-size(32),
+          file_alignment::little-size(32), major_operating_system::little-size(16),
+          minor_operating_system::little-size(16), major_image_version::little-size(16),
+          minor_image_version::little-size(16), major_subsystem_version::little-size(16),
+          minor_subsystem_version::little-size(16), win32_version_value::little-size(32),
+          size_of_image::little-size(32), size_of_headers::little-size(32),
+          checksum::little-size(32), subsystem::little-size(16),
+          dll_characteristics::little-size(16), size_of_stack_reserve::little-size(64),
+          size_of_stack_commit::little-size(64), size_of_heap_reserve::little-size(64),
+          size_of_heap_commit::little-size(64), loader_flags::little-size(32),
+          number_of_rva_and_sizes::little-size(32)>>
+    end
   end
 
   def parse_data_directories(
@@ -344,6 +323,4 @@ defmodule LibPE.OptionalHeader do
       delay_import_descriptor::little-size(64), clr_runtime_header::little-size(64),
       reserved::little-size(64)>>
   end
-
-  # def parse(<<image_base :: little->>)
 end

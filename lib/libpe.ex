@@ -12,7 +12,6 @@ defmodule LibPE do
     :msdos_stub,
     :format,
     :machine,
-    :number_of_sections,
     :timestamp,
     :object_offset,
     :object_entry_count,
@@ -73,7 +72,6 @@ defmodule LibPE do
     %LibPE{
       pe
       | machine: LibPE.MachineType.decode(machine),
-        number_of_sections: number_of_sections,
         timestamp: timestamp,
         object_offset: object_offset,
         object_entry_count: object_entry_count,
@@ -90,7 +88,6 @@ defmodule LibPE do
 
   def encode_coff(%LibPE{
         machine: machine,
-        number_of_sections: number_of_sections,
         timestamp: timestamp,
         object_offset: object_offset,
         object_entry_count: object_entry_count,
@@ -103,6 +100,8 @@ defmodule LibPE do
     coff_flags = LibPE.Characteristics.encode(coff_flags)
     header = LibPE.OptionalHeader.encode(header)
     coff_header_size = byte_size(header)
+
+    number_of_sections = length(sections)
 
     sections =
       Enum.map(sections, &encode_section/1)
@@ -181,6 +180,16 @@ defmodule LibPE do
       flags::little-size(32)>>
   end
 
-  def generate_image() do
+  def update_checksum(%LibPE{} = pe) do
+    tmp_pe =
+      %LibPE{pe | coff_header: %LibPE.OptionalHeader{pe.coff_header | checksum: 0}}
+      |> encode()
+
+    # size = byte_size(tmp_pe) + byte_size(LibPE.OptionalHeader.encode_checksum(pe.coff_header))
+    size = byte_size(tmp_pe)
+
+    # correcting size for the missing checksum field
+    new_checksum = LibPE.Checksum.checksum(tmp_pe, size)
+    %LibPE{pe | coff_header: %LibPE.OptionalHeader{pe.coff_header | checksum: new_checksum}}
   end
 end
