@@ -44,7 +44,7 @@ defmodule LibPE do
     {:ok, pe}
   end
 
-  def encode(%LibPE{meta: meta, meta2: meta2, rest: rest, msdos_stub: msdos_stub}) do
+  def encode(%LibPE{meta: meta, meta2: meta2, msdos_stub: msdos_stub} = pe) do
     stub_size = byte_size(msdos_stub)
     offset = stub_size + @exe_header_size * 16
 
@@ -72,7 +72,7 @@ defmodule LibPE do
 
     %LibPE{
       pe
-      | machine: LibPE.MachineType.find(machine),
+      | machine: LibPE.MachineType.decode(machine),
         number_of_sections: number_of_sections,
         timestamp: timestamp,
         object_offset: object_offset,
@@ -110,8 +110,8 @@ defmodule LibPE do
 
     <<machine::little-size(16), number_of_sections::little-size(16), timestamp::little-size(32),
       object_offset::little-size(32), object_entry_count::little-size(32),
-      coff_header_size::little-size(16), coff_flags::little-size(16), sections::binary,
-      rest::binary>>
+      coff_header_size::little-size(16), coff_flags::little-size(16), header::binary,
+      sections::binary, rest::binary>>
   end
 
   defmodule Section do
@@ -129,17 +129,20 @@ defmodule LibPE do
     ]
   end
 
-  def parse_sections(_rest, 0) do
-    []
+  def parse_sections(rest, number) do
+    List.duplicate(nil, number)
+    |> Enum.reduce({[], rest}, fn _, {sections, rest} ->
+      {section, rest} = parse_section(rest)
+      {sections ++ [section], rest}
+    end)
   end
 
-  def parse_sections(
+  def parse_section(
         <<name::binary-size(8), virtual_size::little-size(32), virtual_address::little-size(32),
           size_of_raw_data::little-size(32), pointer_to_raw_data::little-size(32),
           pointer_to_relocations::little-size(32), pointer_to_linenumbers::little-size(32),
           number_of_relocations::little-size(16), number_of_linenumbers::little-size(16),
-          flags::little-size(32), rest::binary()>>,
-        number_of_sections
+          flags::little-size(32), rest::binary()>>
       ) do
     section = %Section{
       name: name,
@@ -154,7 +157,7 @@ defmodule LibPE do
       flags: LibPE.SectionFlags.decode(flags)
     }
 
-    [section | parse_sections(rest, number_of_sections - 1)]
+    {section, rest}
   end
 
   def encode_section(%Section{

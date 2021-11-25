@@ -8,7 +8,9 @@ defmodule LibPE.WindowsSubsystem do
       Enum.chunk_every(rows, 3, 3, :discard) |> Enum.map(fn [name, id, desc] -> {name, String.to_integer(id), desc} end)
     ```
   """
-  def types() do
+  alias LibPE.Flags
+
+  def flags() do
     [
       {"IMAGE_SUBSYSTEM_UNKNOWN", 0, "An unknown subsystem"},
       {"IMAGE_SUBSYSTEM_NATIVE", 1, "Device drivers and native Windows processes"},
@@ -29,6 +31,9 @@ defmodule LibPE.WindowsSubsystem do
   end
 
   def decode(id) do
-    Enum.find(types(), id, fn {_, value, _} -> id == value end)
+    Flags.decode(__MODULE__, id)
+  end
+  def encode(id) do
+    Flags.encode(__MODULE__, id)
   end
 end

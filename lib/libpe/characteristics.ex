@@ -1,7 +1,7 @@
 defmodule LibPE.Characteristics do
-  use Bitwise
+  alias LibPE.Flags
 
-  def characteristics() do
+  def flags() do
     [
       {"IMAGE_FILE_RELOCS_STRIPPED", 0x0001,
        "Image only, Windows CE, and Microsoft Windows NT and later. This indicates that the file does not contain base relocations and must therefore be loaded at its preferred base address. If the base address is not available, the loader reports an error. The default behavior of the linker is to strip base relocations from executable (EXE) files."},
@@ -35,14 +35,10 @@ defmodule LibPE.Characteristics do
   end
 
   def decode(flags) do
-    Enum.reduce(characteristics(), [], fn char, acc ->
-      {_, id, _} = char
+    Flags.decode_many(__MODULE__, flags)
+  end
 
-      if (flags &&& id) == 0 do
-        acc
-      else
-        acc ++ [char]
-      end
-    end)
+  def encode(flags) do
+    Flags.encode_many(__MODULE__, flags)
   end
 end

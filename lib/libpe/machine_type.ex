@@ -1,4 +1,6 @@
 defmodule LibPE.MachineType do
+  alias LibPE.Flags
+
   def flags() do
     [
       {"IMAGE_FILE_MACHINE_UNKNOWN", 0x0,
@@ -33,8 +35,8 @@ defmodule LibPE.MachineType do
     ]
   end
 
-  def find(id) do
-    Enum.find(flags(), id, fn {_, value, _} -> value == id end)
+  def decode(id) do
+    Flags.decode(__MODULE__, id)
   end
 
   def encode(type) do

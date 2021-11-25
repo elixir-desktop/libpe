@@ -1,5 +1,5 @@
 defmodule LibPE.SectionFlags do
-  use Bitwise
+  alias LibPE.Flags
 
   def flags() do
     [
@@ -67,35 +67,10 @@ defmodule LibPE.SectionFlags do
   end
 
   def decode(numeric_flags) do
-    Enum.reduce(flags(), [], fn char, acc ->
-      {_, id, _} = char
-
-      if (numeric_flags &&& id) == 0 do
-        acc
-      else
-        acc ++ [char]
-      end
-    end)
+    Flags.decode_many(__MODULE__, numeric_flags)
   end
 
-  def encode(numeric_flag) when is_integer(numeric_flag), do: numeric_flag
-
-  def encode(flags) when is_list(flags) do
-    Enum.reduce(flags, 0, fn flag, ret ->
-      num =
-        case flag do
-          num when is_integer(flag) ->
-            num
-
-          {_, num, _} ->
-            num
-
-          name when is_binary(name) ->
-            {_, num, _} = Enum.find(flags(), fn {ename, _, _} -> name == ename end)
-            num
-        end
-
-      ret ||| num
-    end)
+  def encode(numeric_flags) do
+    Flags.encode_many(__MODULE__, numeric_flags)
   end
 end

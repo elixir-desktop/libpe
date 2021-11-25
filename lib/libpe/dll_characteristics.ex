@@ -1,5 +1,5 @@
 defmodule LibPE.DLLCharacteristics do
-  use Bitwise
+  alias LibPE.Flags
 
   @moduledoc """
 
@@ -11,7 +11,7 @@ defmodule LibPE.DLLCharacteristics do
     ```
   """
 
-  def characteristics() do
+  def flags() do
     [
       {"", 1, "Reserved, must be zero."},
       {"", 2, "Reserved, must be zero."},
@@ -35,14 +35,10 @@ defmodule LibPE.DLLCharacteristics do
   end
 
   def decode(flags) do
-    Enum.reduce(characteristics(), [], fn char, acc ->
-      {_, id, _} = char
+    Flags.decode_many(__MODULE__, flags)
+  end
 
-      if (flags &&& id) == 0 do
-        acc
-      else
-        acc ++ [char]
-      end
-    end)
+  def encode(flags) do
+    Flags.encode_many(__MODULE__, flags)
   end
 end
