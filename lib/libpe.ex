@@ -207,6 +207,7 @@ defmodule LibPE do
 
   @doc false
   def binary_pad_trailing(binary, size, padding \\ <<0>>)
+
   def binary_pad_trailing(binary, size, padding) when byte_size(binary) < size do
     bytesize = size - byte_size(binary)
     padding = String.duplicate(padding, ceil(bytesize / byte_size(padding)) * bytesize)

@@ -20,4 +20,15 @@ defmodule LibPETest do
       assert pe == LibPE.update_layout(pe)
     end
   end
+
+  test "test parse resources" do
+    for filename <- ["test/mt.exe"] do
+      raw = File.read!(filename)
+      {:ok, pe} = LibPE.parse_string(raw)
+
+      resources = Enum.find(pe.coff_sections, fn sec -> sec.name == ".rsrc" end)
+      rsrc = LibPE.ResourceDirectoryTable.parse(resources.virtual_data)
+      LibPE.ResourceDirectoryTable.dump(rsrc)
+    end
+  end
 end
