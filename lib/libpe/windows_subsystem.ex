@@ -33,6 +33,7 @@ defmodule LibPE.WindowsSubsystem do
   def decode(id) do
     Flags.decode(__MODULE__, id)
   end
+
   def encode(id) do
     Flags.encode(__MODULE__, id)
   end

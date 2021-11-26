@@ -11,7 +11,7 @@ defmodule LibPE.Checksum do
   """
   def checksum(binary, binary_size) do
     # ensure alignment
-    new_binary = String.pad_trailing(binary, ceil(byte_size(binary) / 2) * 2, <<0>>)
+    new_binary = LibPE.binary_pad_trailing(binary, ceil(byte_size(binary) / 2) * 2)
     rem(do_checksum(new_binary) + (binary_size &&& @max_long), @max_long_long)
   end
 

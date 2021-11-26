@@ -42,6 +42,7 @@ defmodule LibPE.OptionalHeader do
     :resource_table,
     :exception_table,
     :certificate_table,
+    :certificate_data,
     :base_relocation_table,
     :debug,
     :architecture,
@@ -58,7 +59,7 @@ defmodule LibPE.OptionalHeader do
   @magic_pe 0x10B
   @magic_rom 0x107
   @magic_pe_plus 0x20B
-  def parse("") do
+  def parse("", _full_image) do
     nil
   end
 
@@ -66,7 +67,8 @@ defmodule LibPE.OptionalHeader do
         <<magic::little-size(16), major_linker_version::little-size(8),
           minor_linker_version::little-size(8), size_of_code::little-size(32),
           size_of_initialized_data::little-size(32), size_of_uninitialized_data::little-size(32),
-          address_of_entrypoint::little-size(32), base_of_code::little-size(32), rest::binary>>
+          address_of_entrypoint::little-size(32), base_of_code::little-size(32), rest::binary>>,
+        full_image
       ) do
     header = %OptionalHeader{
       magic: magic,
@@ -95,7 +97,7 @@ defmodule LibPE.OptionalHeader do
       end
 
     {header, rest} = parse_windows_extra(magic, rest, header)
-    parse_data_directories(rest, header)
+    parse_data_directories(rest, full_image, header)
   end
 
   def encode(
@@ -273,27 +275,42 @@ defmodule LibPE.OptionalHeader do
           bound_import::little-size(64), iat::little-size(64),
           delay_import_descriptor::little-size(64), clr_runtime_header::little-size(64),
           reserved::little-size(64)>>,
-        pe
+        full_image,
+        header
       ) do
+    certificate_table = decode_table(certificate_table)
+
+    certificate_data =
+      case certificate_table do
+        {0, 0} -> nil
+        {address, size} -> binary_part(full_image, address, size)
+      end
+
     %OptionalHeader{
-      pe
-      | export_table: export_table,
-        import_table: import_table,
-        resource_table: resource_table,
-        exception_table: exception_table,
+      header
+      | export_table: decode_table(export_table),
+        import_table: decode_table(import_table),
+        resource_table: decode_table(resource_table),
+        exception_table: decode_table(exception_table),
         certificate_table: certificate_table,
-        base_relocation_table: base_relocation_table,
-        debug: debug,
-        architecture: architecture,
-        global_ptr: global_ptr,
-        tls_table: tls_table,
-        load_config_table: load_config_table,
-        bound_import: bound_import,
-        iat: iat,
-        delay_import_descriptor: delay_import_descriptor,
-        clr_runtime_header: clr_runtime_header,
+        certificate_data: certificate_data,
+        base_relocation_table: decode_table(base_relocation_table),
+        debug: decode_table(debug),
+        architecture: decode_table(architecture),
+        global_ptr: decode_table(global_ptr),
+        tls_table: decode_table(tls_table),
+        load_config_table: decode_table(load_config_table),
+        bound_import: decode_table(bound_import),
+        iat: decode_table(iat),
+        delay_import_descriptor: decode_table(delay_import_descriptor),
+        clr_runtime_header: decode_table(clr_runtime_header),
         reserved: reserved
     }
+  end
+
+  defp decode_table(num) do
+    <<address::little-size(32), size::little-size(32)>> = <<num::little-size(64)>>
+    {address, size}
   end
 
   def encode_data_directories(%OptionalHeader{
@@ -314,13 +331,28 @@ defmodule LibPE.OptionalHeader do
         clr_runtime_header: clr_runtime_header,
         reserved: reserved
       }) do
-    <<export_table::little-size(64), import_table::little-size(64),
-      resource_table::little-size(64), exception_table::little-size(64),
-      certificate_table::little-size(64), base_relocation_table::little-size(64),
-      debug::little-size(64), architecture::little-size(64), global_ptr::little-size(64),
-      tls_table::little-size(64), load_config_table::little-size(64),
-      bound_import::little-size(64), iat::little-size(64),
-      delay_import_descriptor::little-size(64), clr_runtime_header::little-size(64),
-      reserved::little-size(64)>>
+    <<
+      encode_table(export_table)::little-size(64),
+      encode_table(import_table)::little-size(64),
+      encode_table(resource_table)::little-size(64),
+      encode_table(exception_table)::little-size(64),
+      encode_table(certificate_table)::little-size(64),
+      encode_table(base_relocation_table)::little-size(64),
+      encode_table(debug)::little-size(64),
+      encode_table(architecture)::little-size(64),
+      encode_table(global_ptr)::little-size(64),
+      encode_table(tls_table)::little-size(64),
+      encode_table(load_config_table)::little-size(64),
+      encode_table(bound_import)::little-size(64),
+      encode_table(iat)::little-size(64),
+      encode_table(delay_import_descriptor)::little-size(64),
+      encode_table(clr_runtime_header)::little-size(64),
+      reserved::little-size(64)
+    >>
+  end
+
+  def encode_table({address, size}) do
+    <<ret::little-size(64)>> = <<address::little-size(32), size::little-size(32)>>
+    ret
   end
 end

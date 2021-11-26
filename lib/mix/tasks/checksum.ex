@@ -12,9 +12,9 @@ defmodule Mix.Tasks.Checksum do
     IO.puts("Calculated checksum is #{checksum2}")
 
     if checksum == checksum2 do
-    IO.puts("CORRECT!")
-  else
-    IO.puts("WRONG!")
+      IO.puts("CORRECT!")
+    else
+      IO.puts("WRONG!")
     end
   end
 end
