@@ -4,8 +4,7 @@ defmodule LibPE.WindowsSubsystem do
 
     ```
       data = ... (copy pasted)
-      rows = String.split(data, "\n")
-      Enum.chunk_every(rows, 3, 3, :discard) |> Enum.map(fn [name, id, desc] -> {name, String.to_integer(id), desc} end)
+      Enum.chunk_every(String.split(data, "\n"), 3, 3, :discard) |> Enum.map(fn [name, id, desc] -> {name, String.to_integer(id), desc} end)
     ```
   """
   alias LibPE.Flags

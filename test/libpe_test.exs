@@ -27,8 +27,19 @@ defmodule LibPETest do
       {:ok, pe} = LibPE.parse_string(raw)
 
       resources = Enum.find(pe.coff_sections, fn sec -> sec.name == ".rsrc" end)
-      rsrc = LibPE.ResourceDirectoryTable.parse(resources.virtual_data)
+
+      rsrc = LibPE.ResourceDirectoryTable.parse(resources.virtual_data, resources.virtual_address)
+
       LibPE.ResourceDirectoryTable.dump(rsrc)
+
+      resources2 = LibPE.ResourceDirectoryTable.encode(rsrc, resources.virtual_address)
+      rsrc2 = LibPE.ResourceDirectoryTable.parse(resources2, resources.virtual_address)
+
+      LibPE.ResourceDirectoryTable.dump(rsrc2)
+
+      assert byte_size(resources.virtual_data) == byte_size(resources2)
+      # assert resources.virtual_data == resources2
+      assert rsrc == rsrc2
     end
   end
 end
