@@ -42,8 +42,7 @@ defmodule LibPE.ResourceDirectoryTable do
       :names,
       :tables,
       :output,
-      :data_entries,
-      :data_leaves
+      :data_entries
     ]
 
     def append(%EncodeContext{output: output} = ex, data) do
@@ -84,8 +83,7 @@ defmodule LibPE.ResourceDirectoryTable do
       tables: %{},
       names: %{},
       output: "",
-      data_entries: [],
-      data_leaves: []
+      data_entries: []
     }
 
     # First run to establish offsets and fulll size
@@ -97,7 +95,7 @@ defmodule LibPE.ResourceDirectoryTable do
       |> encode_data_leaves()
       |> Map.put(:output, "")
 
-    IO.puts("ROUND#2")
+    # IO.puts("ROUND#2")
     # Second run now inserting all correct offsets
     context =
       do_encode(resource_table, context)
@@ -158,7 +156,7 @@ defmodule LibPE.ResourceDirectoryTable do
         case entry do
           dir = %ResourceDirectoryTable{} ->
             offset = byte_size(output) ||| @high
-            IO.puts("table offset: #{byte_size(output)}")
+            # IO.puts("table offset: #{byte_size(output)}")
             context = %EncodeContext{context | tables: Map.put(tables, dir, offset)}
             do_encode(dir, context)
 
@@ -219,8 +217,7 @@ defmodule LibPE.ResourceDirectoryTable do
          context = %EncodeContext{
            names: names,
            tables: tables,
-           data_entries: data_entries,
-           data_leaves: data_leaves
+           data_entries: data_entries
          }
        ) do
     {raw_name, context} =
@@ -239,15 +236,16 @@ defmodule LibPE.ResourceDirectoryTable do
             {raw_entry, %EncodeContext{context | tables: Map.put(tables, dir, 0)}}
           end
 
-        %DataEntry{data: blob} ->
-          if fetch(data_entries, blob) != nil do
-            {fetch!(data_entries, blob), context}
+        %DataEntry{data: blob, codepage: codepage} ->
+          key = %DataEntry{data: blob, codepage: codepage}
+
+          if fetch(data_entries, key) != nil do
+            {fetch!(data_entries, key).offset, context}
           else
             {raw_entry,
              %EncodeContext{
                context
-               | data_entries: put(data_entries, blob, 0),
-                 data_leaves: put(data_leaves, blob, 0)
+               | data_entries: put(data_entries, key, %{data_rva: 0, offset: 0})
              }}
           end
       end
@@ -261,7 +259,7 @@ defmodule LibPE.ResourceDirectoryTable do
                                context = %EncodeContext{output: output, names: names} ->
       output = output <> String.duplicate(<<0>>, rem(byte_size(output), 2))
       offset = byte_size(output) ||| @high
-      IO.puts("name offset #{byte_size(output)}")
+      # IO.puts("name offset #{byte_size(output)}")
       names = Map.put(names, name, offset)
       bin = :unicode.characters_to_binary(name, :utf8, {:utf16, :little})
       output = output <> <<String.length(name)::little-size(16), bin::binary>>
@@ -285,20 +283,17 @@ defmodule LibPE.ResourceDirectoryTable do
     }
   end
 
-  defp encode_data_entries(
-         %EncodeContext{data_entries: data_entries, data_leaves: leaves} = context
-       ) do
-    Enum.reduce(data_entries, context, fn {blob, _offset},
+  defp encode_data_entries(%EncodeContext{data_entries: data_entries} = context) do
+    Enum.reduce(data_entries, context, fn {%DataEntry{codepage: codepage, data: blob} = key,
+                                           %{data_rva: data_rva}},
                                           context = %EncodeContext{
                                             output: output,
                                             data_entries: data_entries
                                           } ->
       # output = output <> String.duplicate(<<0>>, rem(byte_size(output), 2))
       offset = byte_size(output)
-      IO.puts("blob offset = #{offset}")
-      data_rva = fetch!(leaves, blob)
+      # IO.puts("blob offset = #{offset}")
       size = byte_size(blob)
-      codepage = 0
       reserved = 0
 
       output =
@@ -306,27 +301,29 @@ defmodule LibPE.ResourceDirectoryTable do
           <<data_rva::little-size(32), size::little-size(32), codepage::little-size(32),
             reserved::little-size(32)>>
 
-      data_entries = put(data_entries, blob, offset)
+      data_entries = put(data_entries, key, %{offset: offset, data_rva: data_rva})
       %EncodeContext{context | data_entries: data_entries, output: output}
     end)
   end
 
   defp encode_data_leaves(
-         %EncodeContext{data_leaves: leaves, image_offset: image_offset} = context
+         %EncodeContext{data_entries: entries, image_offset: image_offset} = context
        ) do
+    # some binaries do this, others don't
     context = EncodeContext.append(context, <<0::little-size(32)>>)
 
-    leaves
-    |> Enum.reduce(context, fn {blob, _offset},
+    entries
+    |> Enum.reduce(context, fn {%DataEntry{data: blob} = key, offsets},
                                context = %EncodeContext{
                                  output: output,
-                                 data_leaves: leaves
+                                 data_entries: entries
                                } ->
       output = LibPE.binary_pad_trailing(output, ceil(byte_size(output) / 8) * 8)
       data_rva = byte_size(output) + image_offset
       output = output <> blob
-      leaves = put(leaves, blob, data_rva)
-      %EncodeContext{context | data_leaves: leaves, output: output}
+      output = LibPE.binary_pad_trailing(output, ceil(byte_size(output) / 8) * 8)
+      entries = put(entries, key, %{offsets | data_rva: data_rva})
+      %EncodeContext{context | data_entries: entries, output: output}
     end)
   end
 
