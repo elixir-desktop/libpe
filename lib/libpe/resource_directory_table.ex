@@ -84,15 +84,16 @@ defmodule LibPE.ResourceDirectoryTable do
       tables: %{},
       names: %{},
       output: "",
-      data_entries: %{},
-      data_leaves: %{}
+      data_entries: [],
+      data_leaves: []
     }
 
     # First run to establish offsets and fulll size
     context =
       do_encode(resource_table, context)
-      |> encode_names()
+      |> encode_tables(resource_table)
       |> encode_data_entries()
+      |> encode_names()
       |> encode_data_leaves()
       |> Map.put(:output, "")
 
@@ -100,8 +101,9 @@ defmodule LibPE.ResourceDirectoryTable do
     # Second run now inserting all correct offsets
     context =
       do_encode(resource_table, context)
-      |> encode_names()
+      |> encode_tables(resource_table)
       |> encode_data_entries()
+      |> encode_names()
       |> encode_data_leaves()
 
     context.output
@@ -113,22 +115,13 @@ defmodule LibPE.ResourceDirectoryTable do
            characteristics: characteristics,
            timestamp: timestamp,
            major_version: major_version,
-           minor_version: minor_version,
-           entries: entries
-         },
+           minor_version: minor_version
+         } = table,
          context = %EncodeContext{}
        ) do
-    {name_entries, id_entries} =
-      Enum.reduce(entries, {[], []}, fn entry = %DirEntry{}, {names, ids} ->
-        if is_integer(entry.name) do
-          {names, ids ++ [entry]}
-        else
-          {names ++ [entry], ids}
-        end
-      end)
-
-    number_of_name_entries = length(name_entries)
-    number_of_id_entries = length(id_entries)
+    entries = sorted_entries(table)
+    number_of_id_entries = Enum.count(entries, fn %DirEntry{name: name} -> is_integer(name) end)
+    number_of_name_entries = length(entries) - number_of_id_entries
 
     context =
       EncodeContext.append(
@@ -138,23 +131,46 @@ defmodule LibPE.ResourceDirectoryTable do
           number_of_name_entries::little-size(16), number_of_id_entries::little-size(16)>>
       )
 
-    entries =
-      Enum.sort(name_entries, fn a, b -> a.name < b.name end) ++
-        Enum.sort(id_entries, fn a, b -> a.name < b.name end)
+    Enum.reduce(entries, context, fn entry, context -> encode_entry(entry, context) end)
+  end
 
-    context = Enum.reduce(entries, context, fn entry, context -> encode_entry(entry, context) end)
+  defp sorted_entries(%ResourceDirectoryTable{entries: entries}) do
+    {name_entries, id_entries} =
+      Enum.reduce(entries, {[], []}, fn entry = %DirEntry{}, {names, ids} ->
+        if is_integer(entry.name) do
+          {names, ids ++ [entry]}
+        else
+          {names ++ [entry], ids}
+        end
+      end)
 
+    Enum.sort(name_entries, fn a, b -> a.name < b.name end) ++
+      Enum.sort(id_entries, fn a, b -> a.name < b.name end)
+  end
+
+  defp encode_tables(context, %ResourceDirectoryTable{} = table) do
     # Reducing recursively other DirectoryTables
-    Enum.reduce(entries, context, fn %DirEntry{entry: entry},
-                                     context = %EncodeContext{tables: tables, output: output} ->
-      case entry do
-        dir = %ResourceDirectoryTable{} ->
-          offset = byte_size(output) ||| @high
-          context = %EncodeContext{context | tables: Map.put(tables, dir, offset)}
-          do_encode(dir, context)
+    entries = sorted_entries(table)
 
-        _other ->
-          context
+    context =
+      Enum.reduce(entries, context, fn %DirEntry{entry: entry},
+                                       context = %EncodeContext{tables: tables, output: output} ->
+        case entry do
+          dir = %ResourceDirectoryTable{} ->
+            offset = byte_size(output) ||| @high
+            IO.puts("table offset: #{byte_size(output)}")
+            context = %EncodeContext{context | tables: Map.put(tables, dir, offset)}
+            do_encode(dir, context)
+
+          _other ->
+            context
+        end
+      end)
+
+    Enum.reduce(entries, context, fn %DirEntry{entry: entry}, context ->
+      case entry do
+        table = %ResourceDirectoryTable{} -> encode_tables(context, table)
+        _other -> context
       end
     end)
   end
@@ -188,8 +204,8 @@ defmodule LibPE.ResourceDirectoryTable do
     {%DirEntry{
        name: name,
        entry: entry,
-       raw_name: raw_name,
-       raw_entry: raw_entry
+       raw_name: raw_name &&& bnot(@high),
+       raw_entry: raw_entry &&& bnot(@high)
      }, rest}
   end
 
@@ -224,14 +240,14 @@ defmodule LibPE.ResourceDirectoryTable do
           end
 
         %DataEntry{data: blob} ->
-          if data_entries[blob] != nil do
-            {data_entries[blob], context}
+          if fetch(data_entries, blob) != nil do
+            {fetch!(data_entries, blob), context}
           else
             {raw_entry,
              %EncodeContext{
                context
-               | data_entries: Map.put(data_entries, blob, 0),
-                 data_leaves: Map.put(data_leaves, blob, 0)
+               | data_entries: put(data_entries, blob, 0),
+                 data_leaves: put(data_leaves, blob, 0)
              }}
           end
       end
@@ -240,10 +256,12 @@ defmodule LibPE.ResourceDirectoryTable do
   end
 
   defp encode_names(%EncodeContext{names: names} = context) do
-    Enum.reduce(names, context, fn {name, _offset},
-                                   context = %EncodeContext{output: output, names: names} ->
+    Enum.sort(names)
+    |> Enum.reduce(context, fn {name, _offset},
+                               context = %EncodeContext{output: output, names: names} ->
       output = output <> String.duplicate(<<0>>, rem(byte_size(output), 2))
       offset = byte_size(output) ||| @high
+      IO.puts("name offset #{byte_size(output)}")
       names = Map.put(names, name, offset)
       bin = :unicode.characters_to_binary(name, :utf8, {:utf16, :little})
       output = output <> <<String.length(name)::little-size(16), bin::binary>>
@@ -253,8 +271,6 @@ defmodule LibPE.ResourceDirectoryTable do
   end
 
   defp parse_data_entry(entry_offset, resources, image_offset) do
-    IO.inspect("parse_data_entry(#{entry_offset}, #{byte_size(resources)})")
-
     <<_::binary-size(entry_offset), data_rva::little-size(32), size::little-size(32),
       codepage::little-size(32), reserved::little-size(32), _rest::binary>> = resources
 
@@ -280,7 +296,7 @@ defmodule LibPE.ResourceDirectoryTable do
       # output = output <> String.duplicate(<<0>>, rem(byte_size(output), 2))
       offset = byte_size(output)
       IO.puts("blob offset = #{offset}")
-      data_rva = Map.fetch!(leaves, blob)
+      data_rva = fetch!(leaves, blob)
       size = byte_size(blob)
       codepage = 0
       reserved = 0
@@ -290,7 +306,7 @@ defmodule LibPE.ResourceDirectoryTable do
           <<data_rva::little-size(32), size::little-size(32), codepage::little-size(32),
             reserved::little-size(32)>>
 
-      data_entries = Map.put(data_entries, blob, offset)
+      data_entries = put(data_entries, blob, offset)
       %EncodeContext{context | data_entries: data_entries, output: output}
     end)
   end
@@ -298,15 +314,18 @@ defmodule LibPE.ResourceDirectoryTable do
   defp encode_data_leaves(
          %EncodeContext{data_leaves: leaves, image_offset: image_offset} = context
        ) do
-    Enum.reduce(leaves, context, fn {blob, _offset},
-                                    context = %EncodeContext{
-                                      output: output,
-                                      data_leaves: leaves
-                                    } ->
-      # output = output <> String.duplicate(<<0>>, rem(byte_size(output), 2))
+    context = EncodeContext.append(context, <<0::little-size(32)>>)
+
+    leaves
+    |> Enum.reduce(context, fn {blob, _offset},
+                               context = %EncodeContext{
+                                 output: output,
+                                 data_leaves: leaves
+                               } ->
+      output = LibPE.binary_pad_trailing(output, ceil(byte_size(output) / 8) * 8)
       data_rva = byte_size(output) + image_offset
       output = output <> blob
-      leaves = Map.put(leaves, blob, data_rva)
+      leaves = put(leaves, blob, data_rva)
       %EncodeContext{context | data_leaves: leaves, output: output}
     end)
   end
@@ -356,5 +375,19 @@ defmodule LibPE.ResourceDirectoryTable do
 
   defp dup(level) do
     String.duplicate("  ", level)
+  end
+
+  defp put(list, key, value) do
+    List.keystore(list, key, 0, {key, value})
+  end
+
+  defp fetch(list, key) do
+    {^key, value} = List.keyfind(list, key, 0, {key, nil})
+    value
+  end
+
+  defp fetch!(list, key) do
+    {^key, value} = List.keyfind(list, key, 0)
+    value
   end
 end
