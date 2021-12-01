@@ -367,7 +367,9 @@ defmodule LibPE.ResourceDirectoryTable do
   end
 
   defp dump(%DataEntry{data_rva: _data_rva, size: size, data: _data, codepage: codepage}, level) do
-    IO.puts("#{dup(level)} DATA size: #{size}, codepage: #{codepage}")
+    IO.puts(
+      "#{dup(level)} DATA size: #{size}, codepage: #{inspect(LibPE.Codepage.decode(codepage))}"
+    )
   end
 
   defp dup(level) do

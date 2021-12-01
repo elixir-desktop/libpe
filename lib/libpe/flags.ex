@@ -1,5 +1,24 @@
 defmodule LibPE.Flags do
+  @moduledoc false
   use Bitwise
+
+  defmacro __using__(opts) do
+    if :many in opts do
+      quote do
+        @moduledoc false
+        alias LibPE.Flags
+        def decode(flags), do: Flags.decode_many(__MODULE__, flags)
+        def encode(flags), do: Flags.encode_many(__MODULE__, flags)
+      end
+    else
+      quote do
+        @moduledoc false
+        alias LibPE.Flags
+        def decode(flags), do: Flags.decode(__MODULE__, flags)
+        def encode(flags), do: Flags.encode(__MODULE__, flags)
+      end
+    end
+  end
 
   def decode(module, id) do
     Enum.find(module.flags(), id, fn {_, value, _} -> value == id end)

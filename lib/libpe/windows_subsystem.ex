@@ -1,4 +1,6 @@
 defmodule LibPE.WindowsSubsystem do
+  use LibPE.Flags
+
   @doc """
     Generated based on documentation. Used this snipper after copy paste:
 
@@ -7,7 +9,6 @@ defmodule LibPE.WindowsSubsystem do
       Enum.chunk_every(String.split(data, "\n"), 3, 3, :discard) |> Enum.map(fn [name, id, desc] -> {name, String.to_integer(id), desc} end)
     ```
   """
-  alias LibPE.Flags
 
   def flags() do
     [
@@ -27,13 +28,5 @@ defmodule LibPE.WindowsSubsystem do
       {"IMAGE_SUBSYSTEM_XBOX", 14, "XBOX"},
       {"IMAGE_SUBSYSTEM_WINDOWS_BOOT_APPLICATION", 16, "Windows boot application. "}
     ]
-  end
-
-  def decode(id) do
-    Flags.decode(__MODULE__, id)
-  end
-
-  def encode(id) do
-    Flags.encode(__MODULE__, id)
   end
 end

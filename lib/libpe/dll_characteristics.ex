@@ -1,5 +1,5 @@
 defmodule LibPE.DLLCharacteristics do
-  alias LibPE.Flags
+  use LibPE.Flags, [:many]
 
   @moduledoc """
 
@@ -32,13 +32,5 @@ defmodule LibPE.DLLCharacteristics do
       {"IMAGE_DLLCHARACTERISTICS_GUARD_CF", 16384, "Image supports Control Flow Guard."},
       {"IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE", 32768, "Terminal Server aware. "}
     ]
-  end
-
-  def decode(flags) do
-    Flags.decode_many(__MODULE__, flags)
-  end
-
-  def encode(flags) do
-    Flags.encode_many(__MODULE__, flags)
   end
 end

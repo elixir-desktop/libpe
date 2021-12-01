@@ -1,5 +1,5 @@
 defmodule LibPE.Language do
-  alias LibPE.Flags
+  use LibPE.Flags
 
   @doc """
     Generated based on documentation. Used this snipper after copy paste:
@@ -266,13 +266,5 @@ defmodule LibPE.Language do
       {"es-419", 58378, "Spanish - Latin America"},
       {"fr-015", 58380, "French - North Africa"}
     ]
-  end
-
-  def decode(flag) do
-    Flags.decode(__MODULE__, flag)
-  end
-
-  def encode(flag) do
-    Flags.encode(__MODULE__, flag)
   end
 end

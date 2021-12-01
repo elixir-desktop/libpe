@@ -1,4 +1,6 @@
 defmodule LibPE.ResourceTypes do
+  use LibPE.Flags
+
   @doc """
     Generated based on documentation. Used this snipper after copy paste:
 
@@ -7,7 +9,6 @@ defmodule LibPE.ResourceTypes do
       Enum.chunk_every(String.split(data, "\n"), 5, 5, :discard) |> Enum.map(fn [_, name, id, _, desc] -> {name, Regex.replace(~r/MAKEINTRESOURCE\(([0-9]+)\)/, id, "\\1"), desc} end)
     ```
   """
-  alias LibPE.Flags
 
   def flags() do
     [
@@ -34,13 +35,5 @@ defmodule LibPE.ResourceTypes do
       {"RT_VERSION", 16, "Version resource."},
       {"RT_VXD", 20, "VXD."}
     ]
-  end
-
-  def decode(id) do
-    Flags.decode(__MODULE__, id)
-  end
-
-  def encode(id) do
-    Flags.encode(__MODULE__, id)
   end
 end

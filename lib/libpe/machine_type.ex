@@ -1,5 +1,5 @@
 defmodule LibPE.MachineType do
-  alias LibPE.Flags
+  use LibPE.Flags
 
   def flags() do
     [
@@ -33,13 +33,5 @@ defmodule LibPE.MachineType do
       {"IMAGE_FILE_MACHINE_THUMB", 0x1C2, "Thumb"},
       {"IMAGE_FILE_MACHINE_WCEMIPSV2", 0x169, "MIPS little-endian WCE v2"}
     ]
-  end
-
-  def decode(id) do
-    Flags.decode(__MODULE__, id)
-  end
-
-  def encode(type) do
-    Flags.encode(__MODULE__, type)
   end
 end

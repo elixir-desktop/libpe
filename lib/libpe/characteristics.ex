@@ -1,5 +1,5 @@
 defmodule LibPE.Characteristics do
-  alias LibPE.Flags
+  use LibPE.Flags, [:many]
 
   def flags() do
     [
@@ -32,13 +32,5 @@ defmodule LibPE.Characteristics do
       {"IMAGE_FILE_BYTES_REVERSED_HI", 0x8000,
        "Big endian: the MSB precedes the LSB in memory. This flag is deprecated and should be zero.     ]"}
     ]
-  end
-
-  def decode(flags) do
-    Flags.decode_many(__MODULE__, flags)
-  end
-
-  def encode(flags) do
-    Flags.encode_many(__MODULE__, flags)
   end
 end

@@ -1,5 +1,5 @@
 defmodule LibPE.SectionFlags do
-  alias LibPE.Flags
+  use LibPE.Flags
 
   def flags() do
     [
@@ -66,11 +66,4 @@ defmodule LibPE.SectionFlags do
     ]
   end
 
-  def decode(numeric_flags) do
-    Flags.decode_many(__MODULE__, numeric_flags)
-  end
-
-  def encode(numeric_flags) do
-    Flags.encode_many(__MODULE__, numeric_flags)
-  end
 end
