@@ -38,7 +38,6 @@ defmodule Mix.Tasks.Pe.Update do
 
       raw =
         update_resources(pe, resources)
-        |> LibPE.update_layout()
         |> LibPE.update_checksum()
         |> LibPE.encode()
 
@@ -75,6 +74,7 @@ defmodule Mix.Tasks.Pe.Update do
       end)
 
     LibPE.set_resources(pe, resource_table)
+    |> LibPE.update_layout()
   end
 
   defp process_args(opts, []) do
