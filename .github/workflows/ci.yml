@@ -16,4 +16,5 @@ jobs:
         echo "$HOME/elixir/bin" >> $GITHUB_PATH
     - uses: actions/checkout@v1
     - run: |
+        mix local.hex --force
         mix test
