@@ -1,4 +1,5 @@
 defmodule LibPE.Section do
+  @moduledoc false
   alias LibPE.Section
 
   defstruct [
@@ -37,7 +38,7 @@ defmodule LibPE.Section do
 
     # According to spec there should only be a zero padding difference between raw_data
     # and virtual data... BUT in production we can see that Microsoft is using other paddings
-    # such as in .rsrc 'PADDINGXX' is used for padding :-(
+    # such as 'PADDINGXX' in some cases :-(
     virtual_data =
       binary_part(full_image, pointer_to_raw_data, min(size_of_raw_data, virtual_size))
       |> LibPE.binary_pad_trailing(virtual_size)

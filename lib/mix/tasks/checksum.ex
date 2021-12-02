@@ -1,4 +1,4 @@
-defmodule Mix.Tasks.Checksum do
+defmodule Mix.Tasks.Pe.Checksum do
   use Mix.Task
 
   @shortdoc "Checks the PE checksum of the provided file."

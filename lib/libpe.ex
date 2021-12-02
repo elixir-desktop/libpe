@@ -1,6 +1,15 @@
 defmodule LibPE do
   @moduledoc """
-  Documentation for `LibPE`.
+    Implementation of the Windows PE executable format for reading and writing PE binaries.
+
+    Most struct member names are taken directly from the windows documentation:
+    https://docs.microsoft.com/en-us/windows/win32/debug/pe-format
+
+    This library has been created specifically to archieve the following:
+
+    * Update the PE checksum in `erl.exe` after making changes
+    * Insert a Microsoft manifest file after compilation: https://docs.microsoft.com/de-de/windows/win32/sbscs/application-manifests
+    * Insert an Executable Icon after compilation
   """
 
   @exe_header_size 4
@@ -19,12 +28,12 @@ defmodule LibPE do
     :rest
   ]
 
+  @spec parse_file(binary()) :: {:ok, %LibPE{}}
   def parse_file(filename) do
     parse_string(File.read!(filename))
   end
 
-  # https://www.lowlevel.eu/wiki/Microsoft_Portable_Executable_and_Common_Object_File_Format
-  # https://docs.microsoft.com/en-us/windows/win32/debug/pe-format
+  @spec parse_string(binary()) :: {:ok, %LibPE{}}
   def parse_string(
         <<"MZ", meta::binary-size(6), @exe_header_size::little-size(16), meta2::binary-size(50),
           offset::little-size(32), rest::binary>> = full_image
@@ -41,6 +50,7 @@ defmodule LibPE do
     {:ok, pe}
   end
 
+  @spec encode(%LibPE{}) :: binary()
   def encode(%LibPE{} = pe) do
     header = encode_header(pe)
 
@@ -154,27 +164,29 @@ defmodule LibPE do
     been changed
   """
   @quad_word_size 64
-  def update_layout(%LibPE{} = pe) do
-    header_offset = byte_size(encode_header(pe))
-    header = pe.coff_header
-    file_alignment = header.file_alignment
-    virtual_alignment = header.section_alignment
+  def update_layout(%LibPE{coff_sections: sections, coff_header: header} = pe) do
+    offset = byte_size(encode_header(pe))
+
+    %LibPE.OptionalHeader{file_alignment: file_alignment, section_alignment: virtual_alignment} =
+      header
 
     {sections, offsets} =
-      Enum.map_reduce(pe.coff_sections, {header_offset, header_offset}, fn %LibPE.Section{} = sec,
-                                                                           {virtual, raw} ->
+      Enum.map_reduce(sections, {offset, offset}, fn %LibPE.Section{
+                                                       virtual_data: virtual_data
+                                                     } = sec,
+                                                     {virtual, raw} ->
         virtual = ceil(virtual / virtual_alignment) * virtual_alignment
         raw = ceil(raw / file_alignment) * file_alignment
 
-        virtual_size = byte_size(sec.virtual_data)
-        raw_size = byte_size(String.trim_trailing(sec.virtual_data, "\0"))
+        virtual_size = byte_size(virtual_data)
+        raw_size = byte_size(String.trim_trailing(virtual_data, "\0"))
         raw_size = ceil(raw_size / file_alignment) * file_alignment
 
         raw_data =
           if virtual_size < raw_size do
-            binary_pad_trailing(sec.virtual_data, raw_size, sec.padding)
+            binary_pad_trailing(virtual_data, raw_size, sec.padding)
           else
-            binary_part(sec.virtual_data, 0, raw_size)
+            binary_part(virtual_data, 0, raw_size)
           end
 
         sec = %LibPE.Section{
@@ -202,7 +214,67 @@ defmodule LibPE do
         %LibPE.OptionalHeader{header | certificate_table: {0, 0}}
       end
 
+    # Only updating the physical tables `.rsrc` and `.reloc`
+    header =
+      [
+        # export_table: ".edata",
+        # import_table: ".idata",
+        resource_table: ".rsrc",
+        # exception_table: ".pdata",
+        base_relocation_table: ".reloc"
+        # debug: ".debug",
+        # tls_table: ".tls"
+      ]
+      |> Enum.reduce(header, fn {field_name, section_name}, header ->
+        case Enum.find(sections, fn %LibPE.Section{name: name} -> name == section_name end) do
+          nil ->
+            Map.put(header, field_name, {0, 0})
+
+          %LibPE.Section{virtual_address: virtual_address, virtual_size: virtual_size} ->
+            Map.put(header, field_name, {virtual_address, virtual_size})
+        end
+      end)
+
     %LibPE{pe | coff_sections: sections, coff_header: header}
+  end
+
+  def get_resources(%LibPE{coff_sections: sections}) do
+    %LibPE.Section{virtual_data: virtual_data, virtual_address: virtual_address} =
+      Enum.find(sections, fn %LibPE.Section{name: name} -> name == ".rsrc" end)
+
+    LibPE.ResourceTable.parse(virtual_data, virtual_address)
+  end
+
+  def set_resources(%LibPE{coff_sections: sections} = pe, resources = %LibPE.ResourceTable{}) do
+    # need to ensure that the virtual_address is up-to-date
+    pe = update_layout(pe)
+
+    # now fetching and setting the resource
+    idx = Enum.find_index(sections, fn %LibPE.Section{name: name} -> name == ".rsrc" end)
+
+    section = %LibPE.Section{virtual_address: virtual_address} = Enum.at(sections, idx)
+    data = LibPE.ResourceTable.encode(resources, virtual_address)
+    section = %LibPE.Section{section | virtual_data: data}
+
+    sections = List.update_at(sections, idx, fn _ -> section end)
+
+    # updating offsets coming after the ".rsrc" section
+    %LibPE{pe | coff_sections: sections}
+    |> update_layout()
+  end
+
+  def set_resource(
+        pe,
+        resource_type,
+        data,
+        codepage \\ 0,
+        language \\ 1033
+      ) do
+    resources =
+      get_resources(pe)
+      |> LibPE.ResourceTable.set_resource(resource_type, data, codepage, language)
+
+    set_resources(pe, resources)
   end
 
   @doc false

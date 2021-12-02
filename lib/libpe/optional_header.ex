@@ -1,4 +1,5 @@
 defmodule LibPE.OptionalHeader do
+  @moduledoc false
   alias LibPE.OptionalHeader
 
   defstruct [
@@ -278,6 +279,7 @@ defmodule LibPE.OptionalHeader do
         full_image,
         header
       ) do
+    # The certificate table is special as it's appended to the image after all sections:
     certificate_table = decode_table(certificate_table)
 
     certificate_data =

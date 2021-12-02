@@ -1,5 +1,8 @@
 defmodule LibPE.Checksum do
-  # from https://bytepointer.com/resources/microsoft_pe_checksum_algo_distilled.htm David N. Cutler 1993
+  @moduledoc """
+    Elixir implementation of the PE checksum algorithm by David N. Cutler 1993
+    from https://bytepointer.com/resources/microsoft_pe_checksum_algo_distilled.htm
+  """
   use Bitwise
   @max_word 0xFFFF
   @max_long 0xFFFFFFFF

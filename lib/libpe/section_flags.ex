@@ -65,5 +65,4 @@ defmodule LibPE.SectionFlags do
       {"IMAGE_SCN_MEM_WRITE", 2_147_483_648, "The section can be written to. "}
     ]
   end
-
 end

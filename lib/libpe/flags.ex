@@ -70,4 +70,12 @@ defmodule LibPE.Flags do
       ret ||| num
     end)
   end
+
+  def is_name(module, name) do
+    name in names(module)
+  end
+
+  def names(module) do
+    Enum.map(module.flags(), fn {name, _, _} -> name end)
+  end
 end

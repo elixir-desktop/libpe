@@ -1,4 +1,4 @@
-defmodule LibPE.ResourceDirectoryTable do
+defmodule LibPE.ResourceTable do
   @moduledoc """
     Parses windows resource tables
 
@@ -6,37 +6,33 @@ defmodule LibPE.ResourceDirectoryTable do
 
       Type > Name > Language
   """
-  alias LibPE.ResourceDirectoryTable
+  alias LibPE.ResourceTable
   use Bitwise
 
-  defstruct [
-    :characteristics,
-    :timestamp,
-    :major_version,
-    :minor_version,
-    :entries
-  ]
+  defstruct characteristics: 0,
+            timestamp: 0,
+            major_version: 0,
+            minor_version: 0,
+            entries: []
 
   defmodule DirEntry do
-    defstruct [
-      :name,
-      :entry,
-      :raw_entry,
-      :raw_name
-    ]
+    @moduledoc false
+    defstruct name: nil,
+              entry: nil,
+              raw_entry: 0,
+              raw_name: 0
   end
 
-  defmodule DataEntry do
-    defstruct [
-      :data_rva,
-      :size,
-      :data,
-      :codepage,
-      :reserved
-    ]
+  defmodule DataBlob do
+    @moduledoc false
+    defstruct data_rva: 0,
+              data: nil,
+              codepage: 0,
+              reserved: 0
   end
 
   defmodule EncodeContext do
+    @moduledoc false
     defstruct [
       :image_offset,
       :names,
@@ -68,13 +64,97 @@ defmodule LibPE.ResourceDirectoryTable do
         parse_entry(rest, resources, image_offset)
       end)
 
-    %ResourceDirectoryTable{
+    %ResourceTable{
       characteristics: characteristics,
       timestamp: timestamp,
       major_version: major_version,
       minor_version: minor_version,
       entries: entries
     }
+  end
+
+  @doc """
+    Allows updating a resources. At the moment this call is destructive as it does
+    not allows defining more than one name or language per resource entry.
+    Each defined resource entry set with `set_resource` will have it's PE name
+    set to `1` and it's language to the provided language code by default `1033`
+
+    Example:
+
+    > LibPE.ResourceTable.set_resource(table, "RT_MANIFEST", manifest)
+
+    Known resources types are:
+
+    ```
+      {"RT_ACCELERATOR", 9, "Accelerator table."},
+      {"RT_ANICURSOR", 21, "Animated cursor."},
+      {"RT_ANIICON", 22, "Animated icon."},
+      {"RT_BITMAP", 2, "Bitmap resource."},
+      {"RT_CURSOR", 1, "Hardware-dependent cursor resource."},
+      {"RT_DIALOG", 5, "Dialog box."},
+      {"RT_DLGINCLUDE", 17,
+       "Allows a resource editing tool to associate a string with an .rc file. Typically, the string is the name of the header file that provides symbolic names. The resource compiler parses the string but otherwise ignores the value. For example,"},
+      {"RT_FONT", 8, "Font resource."},
+      {"RT_FONTDIR", 7, "Font directory resource."},
+      {"RT_GROUP_CURSOR", 12, "Hardware-independent cursor resource."},
+      {"RT_GROUP_ICON", 14, "Hardware-independent icon resource."},
+      {"RT_HTML", 23, "HTML resource."},
+      {"RT_ICON", 3, "Hardware-dependent icon resource."},
+      {"RT_MANIFEST", 24, "Side-by-Side Assembly Manifest."},
+      {"RT_MENU", 4, "Menu resource."},
+      {"RT_MESSAGETABLE", 11, "Message-table entry."},
+      {"RT_PLUGPLAY", 19, "Plug and Play resource."},
+      {"RT_RCDATA", 10, "Application-defined resource (raw data)."},
+      {"RT_STRING", 6, "String-table entry."},
+      {"RT_VERSION", 16, "Version resource."},
+      {"RT_VXD", 20, "VXD."}
+    ```
+
+  """
+  def set_resource(
+        table = %ResourceTable{entries: entries},
+        resource_type,
+        data,
+        codepage \\ 0,
+        language \\ 1033
+      )
+      when is_binary(data) do
+    type = LibPE.ResourceTypes.encode(resource_type)
+    if type == nil, do: raise("ResourceType #{resource_type} is unknown")
+    page = LibPE.Codepage.encode(codepage)
+    if page == nil, do: raise("Codepage #{codepage} is unknown")
+    lang = LibPE.Language.encode(language)
+    if lang == nil, do: raise("Language #{language} is unknown")
+
+    entry =
+      Enum.find(entries, %DirEntry{name: type}, fn %DirEntry{name: name} -> type == name end)
+
+    entry = %DirEntry{
+      entry
+      | entry: %ResourceTable{
+          entries: [
+            %DirEntry{
+              name: 1,
+              entry: %ResourceTable{
+                entries: [
+                  %DirEntry{name: lang, entry: %DataBlob{codepage: page, data: data}}
+                ]
+              }
+            }
+          ]
+        }
+    }
+
+    idx = Enum.find_index(entries, fn %DirEntry{name: name} -> type == name end)
+
+    entries =
+      if idx == nil do
+        sorted_entries(%ResourceTable{table | entries: entries ++ [entry]})
+      else
+        List.update_at(entries, idx, fn _ -> entry end)
+      end
+
+    %ResourceTable{table | entries: entries}
   end
 
   def encode(resource_table, image_offset) do
@@ -109,7 +189,7 @@ defmodule LibPE.ResourceDirectoryTable do
 
   @high 0x80000000
   defp do_encode(
-         %ResourceDirectoryTable{
+         %ResourceTable{
            characteristics: characteristics,
            timestamp: timestamp,
            major_version: major_version,
@@ -132,7 +212,7 @@ defmodule LibPE.ResourceDirectoryTable do
     Enum.reduce(entries, context, fn entry, context -> encode_entry(entry, context) end)
   end
 
-  defp sorted_entries(%ResourceDirectoryTable{entries: entries}) do
+  defp sorted_entries(%ResourceTable{entries: entries}) do
     {name_entries, id_entries} =
       Enum.reduce(entries, {[], []}, fn entry = %DirEntry{}, {names, ids} ->
         if is_integer(entry.name) do
@@ -146,7 +226,7 @@ defmodule LibPE.ResourceDirectoryTable do
       Enum.sort(id_entries, fn a, b -> a.name < b.name end)
   end
 
-  defp encode_tables(context, %ResourceDirectoryTable{} = table) do
+  defp encode_tables(context, %ResourceTable{} = table) do
     # Reducing recursively other DirectoryTables
     entries = sorted_entries(table)
 
@@ -154,7 +234,7 @@ defmodule LibPE.ResourceDirectoryTable do
       Enum.reduce(entries, context, fn %DirEntry{entry: entry},
                                        context = %EncodeContext{tables: tables, output: output} ->
         case entry do
-          dir = %ResourceDirectoryTable{} ->
+          dir = %ResourceTable{} ->
             offset = byte_size(output) ||| @high
             # IO.puts("table offset: #{byte_size(output)}")
             context = %EncodeContext{context | tables: Map.put(tables, dir, offset)}
@@ -167,7 +247,7 @@ defmodule LibPE.ResourceDirectoryTable do
 
     Enum.reduce(entries, context, fn %DirEntry{entry: entry}, context ->
       case entry do
-        table = %ResourceDirectoryTable{} -> encode_tables(context, table)
+        table = %ResourceTable{} -> encode_tables(context, table)
         _other -> context
       end
     end)
@@ -229,15 +309,15 @@ defmodule LibPE.ResourceDirectoryTable do
 
     {raw_entry, context} =
       case entry do
-        dir = %ResourceDirectoryTable{} ->
+        dir = %ResourceTable{} ->
           if tables[dir] != nil do
             {tables[dir], context}
           else
             {raw_entry, %EncodeContext{context | tables: Map.put(tables, dir, 0)}}
           end
 
-        %DataEntry{data: blob, codepage: codepage} ->
-          key = %DataEntry{data: blob, codepage: codepage}
+        %DataBlob{data: blob, codepage: codepage} ->
+          key = %DataBlob{data: blob, codepage: codepage}
 
           if fetch(data_entries, key) != nil do
             {fetch!(data_entries, key).offset, context}
@@ -274,9 +354,8 @@ defmodule LibPE.ResourceDirectoryTable do
 
     data = binary_part(resources, data_rva - image_offset, size)
 
-    %DataEntry{
+    %DataBlob{
       data_rva: data_rva,
-      size: size,
       data: data,
       codepage: codepage,
       reserved: reserved
@@ -284,7 +363,7 @@ defmodule LibPE.ResourceDirectoryTable do
   end
 
   defp encode_data_entries(%EncodeContext{data_entries: data_entries} = context) do
-    Enum.reduce(data_entries, context, fn {%DataEntry{codepage: codepage, data: blob} = key,
+    Enum.reduce(data_entries, context, fn {%DataBlob{codepage: codepage, data: blob} = key,
                                            %{data_rva: data_rva}},
                                           context = %EncodeContext{
                                             output: output,
@@ -313,7 +392,7 @@ defmodule LibPE.ResourceDirectoryTable do
     context = EncodeContext.append(context, <<0::little-size(32)>>)
 
     entries
-    |> Enum.reduce(context, fn {%DataEntry{data: blob} = key, offsets},
+    |> Enum.reduce(context, fn {%DataBlob{data: blob} = key, offsets},
                                context = %EncodeContext{
                                  output: output,
                                  data_entries: entries
@@ -332,7 +411,7 @@ defmodule LibPE.ResourceDirectoryTable do
   end
 
   defp dump(
-         %ResourceDirectoryTable{
+         %ResourceTable{
            characteristics: _characteristics,
            timestamp: _timestamp,
            major_version: _major_version,
@@ -366,9 +445,11 @@ defmodule LibPE.ResourceDirectoryTable do
     dump(entry, level + 1)
   end
 
-  defp dump(%DataEntry{data_rva: _data_rva, size: size, data: _data, codepage: codepage}, level) do
+  defp dump(%DataBlob{data_rva: _data_rva, data: data, codepage: codepage}, level) do
     IO.puts(
-      "#{dup(level)} DATA size: #{size}, codepage: #{inspect(LibPE.Codepage.decode(codepage))}"
+      "#{dup(level)} DATA size: #{byte_size(data)}, codepage: #{
+        inspect(LibPE.Codepage.decode(codepage))
+      }"
     )
   end
 

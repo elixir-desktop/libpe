@@ -1,7 +1,7 @@
 defmodule LibPE.DLLCharacteristics do
   use LibPE.Flags, [:many]
 
-  @moduledoc """
+  @doc """
 
     Generated based on documentation. Used this snipper after copy paste:
 

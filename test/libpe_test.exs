@@ -17,7 +17,7 @@ defmodule LibPETest do
       raw = File.read!(filename)
       {:ok, pe} = LibPE.parse_string(raw)
 
-      assert pe == LibPE.update_layout(pe)
+      assert clean_data(pe) == clean_data(LibPE.update_layout(pe))
     end
   end
 
@@ -28,14 +28,12 @@ defmodule LibPETest do
 
       resources = Enum.find(pe.coff_sections, fn sec -> sec.name == ".rsrc" end)
 
-      rsrc = LibPE.ResourceDirectoryTable.parse(resources.virtual_data, resources.virtual_address)
+      rsrc = LibPE.ResourceTable.parse(resources.virtual_data, resources.virtual_address)
 
-      LibPE.ResourceDirectoryTable.dump(rsrc)
+      LibPE.ResourceTable.dump(rsrc)
 
-      resources2 = LibPE.ResourceDirectoryTable.encode(rsrc, resources.virtual_address)
-      rsrc2 = LibPE.ResourceDirectoryTable.parse(resources2, resources.virtual_address)
-
-      LibPE.ResourceDirectoryTable.dump(rsrc2)
+      resources2 = LibPE.ResourceTable.encode(rsrc, resources.virtual_address)
+      rsrc2 = LibPE.ResourceTable.parse(resources2, resources.virtual_address)
 
       assert clean_data(rsrc) == clean_data(rsrc2)
       # assert byte_size(resources.virtual_data) == byte_size(resources2)
@@ -56,7 +54,8 @@ defmodule LibPETest do
     Enum.reduce(map, %{}, fn {key, value}, ret ->
       value =
         cond do
-          key == :data -> :cleaned
+          key == :raw_data -> :crypto.hash(:sha, value)
+          key == :virtual_data -> :crypto.hash(:sha, value)
           key == :data_rva -> :cleaned
           is_map(value) -> clean_data(value)
           is_list(value) -> Enum.map(value, fn x -> clean_data(x) end)
