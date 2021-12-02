@@ -8,7 +8,7 @@ defmodule Mix.Tasks.Pe.Checksum do
 
   @doc false
   def run([]) do
-    IO.puts(@moduldoc)
+    IO.puts(@moduledoc)
     System.halt()
   end
 
