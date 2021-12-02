@@ -1,20 +1,14 @@
 defmodule Mix.Tasks.Pe.Checksum do
   @moduledoc """
-      SYNTAX: mix pe.checksum <filename> (<filename>...)
+    SYNTAX: mix pe.checksum <filename> (<filename>...)
 
-      pe.checksum checks the PE-checksum of the given pe files.
-
+    pe.checksum checks the PE-checksum of the given pe files.
   """
   use Mix.Task
 
   @doc false
   def run([]) do
-    IO.puts("""
-      SYNTAX: mix pe.checksum <filename> (<filename>...)
-
-      pe.checksum checks the PE-checksum of the given pe files.
-    """)
-
+    IO.puts(@moduldoc)
     System.halt()
   end
 

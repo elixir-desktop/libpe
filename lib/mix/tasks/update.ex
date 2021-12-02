@@ -1,25 +1,24 @@
 defmodule Mix.Tasks.Pe.Update do
   @moduledoc """
-      SYNTAX: mix pe.update (options) <filename>
+    SYNTAX: mix pe.update (options) <filename>
 
-      pe.update updates the PE-checksum of the given pe file and
-      additionally can add resources to it if needed.
+    pe.update updates the PE-checksum of the given pe file and
+    additionally can add resources to it if needed.
 
-      Options are:
+    Options are:
 
-          -h | -help                        This help
-          --set-icon <filename>             Embeds a given side-by-side manifest
-          --set-manifest <filename>         Embeds a given application icon
-          --set-resource <type> <filename>  Embeds any resources type
+        -h | -help                        This help
+        --set-icon <filename>             Embeds a given side-by-side manifest
+        --set-manifest <filename>         Embeds a given application icon
+        --set-resource <type> <filename>  Embeds any resources type
 
-      Known resources types are:
+    Known resources types are:
 
-      "RT_ACCELERATOR", "RT_ANICURSOR", "RT_ANIICON", "RT_BITMAP", "RT_CURSOR",
-      "RT_DIALOG", "RT_DLGINCLUDE", "RT_FONT", "RT_FONTDIR", "RT_GROUP_CURSOR",
-      "RT_GROUP_ICON", "RT_HTML", "RT_ICON", "RT_MANIFEST", "RT_MENU",
-      "RT_MESSAGETABLE", "RT_PLUGPLAY", "RT_RCDATA", "RT_STRING", "RT_VERSION",
-      "RT_VXD"
-
+    "RT_ACCELERATOR", "RT_ANICURSOR", "RT_ANIICON", "RT_BITMAP", "RT_CURSOR",
+    "RT_DIALOG", "RT_DLGINCLUDE", "RT_FONT", "RT_FONTDIR", "RT_GROUP_CURSOR",
+    "RT_GROUP_ICON", "RT_HTML", "RT_ICON", "RT_MANIFEST", "RT_MENU",
+    "RT_MESSAGETABLE", "RT_PLUGPLAY", "RT_RCDATA", "RT_STRING", "RT_VERSION",
+    "RT_VXD"
   """
   use Mix.Task
 
@@ -46,20 +45,7 @@ defmodule Mix.Tasks.Pe.Update do
   end
 
   defp show_help() do
-    IO.puts("""
-      SYNTAX: mix pe.update (options) <filename>
-
-      pe.update updates the PE-checksum of the given pe file and
-      additionally can add resources to it if needed.
-
-      Options are:
-
-          -h | -help                        This help
-          --set-icon <filename>             Embeds a given side-by-side manifest
-          --set-manifest <filename>         Embeds a given application icon
-          --set-resource <type> <filename>  Embeds any resources type
-    """)
-
+    IO.puts(@moduledoc)
     System.halt()
   end
 

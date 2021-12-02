@@ -406,6 +406,10 @@ defmodule LibPE.ResourceTable do
     end)
   end
 
+  def dump(nil) do
+    IO.puts("NO RESOURCE TABLE")
+  end
+
   def dump(data) do
     dump(data, 0)
   end

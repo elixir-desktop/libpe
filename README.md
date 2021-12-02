@@ -24,7 +24,13 @@ To update the checksum:
   mix pe.update <filename.exe>
 ```
 
-To add an icon and update the checksum:
+To list all resources in a file:
+
+```bash
+  mix pe.dump <filename.exe>
+```
+
+To set an icon resource (and update the checksum):
 
 ```bash
   mix pe.update --set-icon <icon.png> <filename.exe>

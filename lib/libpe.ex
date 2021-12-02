@@ -239,10 +239,13 @@ defmodule LibPE do
   end
 
   def get_resources(%LibPE{coff_sections: sections}) do
-    %LibPE.Section{virtual_data: virtual_data, virtual_address: virtual_address} =
-      Enum.find(sections, fn %LibPE.Section{name: name} -> name == ".rsrc" end)
+    case Enum.find(sections, fn %LibPE.Section{name: name} -> name == ".rsrc" end) do
+      %LibPE.Section{virtual_data: virtual_data, virtual_address: virtual_address} ->
+        LibPE.ResourceTable.parse(virtual_data, virtual_address)
 
-    LibPE.ResourceTable.parse(virtual_data, virtual_address)
+      nil ->
+        nil
+    end
   end
 
   def set_resources(%LibPE{coff_sections: sections} = pe, resources = %LibPE.ResourceTable{}) do
