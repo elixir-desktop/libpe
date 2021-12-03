@@ -3,17 +3,19 @@ defmodule LibPETest do
   doctest LibPE
 
   test "test open file" do
-    for filename <- ["test/dialyzer.exe", "test/mt.exe"] do
+    for filename <- test_files() do
       raw = File.read!(filename)
       {:ok, pe} = LibPE.parse_string(raw)
 
-      assert raw == LibPE.encode(pe)
+      reencoded = LibPE.encode(pe)
+      assert byte_size(raw) == byte_size(reencoded)
+      assert :crypto.hash(:sha, raw) == :crypto.hash(:sha, reencoded)
       assert pe.coff_header.checksum == LibPE.update_checksum(pe).coff_header.checksum
     end
   end
 
   test "test update file" do
-    for filename <- ["test/dialyzer.exe", "test/mt.exe"] do
+    for filename <- test_files() do
       raw = File.read!(filename)
       {:ok, pe} = LibPE.parse_string(raw)
 
@@ -22,7 +24,7 @@ defmodule LibPETest do
   end
 
   test "test parse resources" do
-    for filename <- ["test/mt.exe", "test/dialyzer.exe"] do
+    for filename <- test_files() do
       raw = File.read!(filename)
       {:ok, pe} = LibPE.parse_string(raw)
 
@@ -45,6 +47,10 @@ defmodule LibPETest do
   # defp tip(rsrc) do
   #   clean_data(hd(rsrc.entries))
   # end
+
+  defp test_files() do
+    ["test/mt.exe", "test/dialyzer.exe"]
+  end
 
   defp clean_data(map) when is_struct(map) do
     clean_data(Map.from_struct(map))

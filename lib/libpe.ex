@@ -44,15 +44,24 @@ defmodule LibPE do
     <<msdos_stub::binary-size(stub_size), coff::binary>> = rest
 
     pe =
-      %LibPE{meta: meta, meta2: meta2, msdos_stub: msdos_stub}
+      %LibPE{meta: meta, meta2: meta2, msdos_stub: msdos_stub, rest: ""}
       |> parse_coff(coff, full_image)
+
+    end_offset = byte_size(encode(pe))
+
+    pe =
+      if end_offset < byte_size(full_image) do
+        %LibPE{pe | rest: binary_part(full_image, end_offset, byte_size(full_image) - end_offset)}
+      else
+        pe
+      end
 
     {:ok, pe}
   end
 
   @spec encode(%LibPE{}) :: binary()
-  def encode(%LibPE{} = pe) do
-    header = encode_header(pe)
+  def encode(%LibPE{rest: rest, coff_sections: sections, coff_header: header} = pe) do
+    image = encode_header(pe)
 
     # Compare with Section.parse_section()
     # We assume the `raw_data` is the actual "virtual" payload
@@ -60,19 +69,19 @@ defmodule LibPE do
     # often the real payload is smaller than the file space, but sometimes it can
     # be larger as well (when the tail is only made of zeros)
     image =
-      Enum.reduce(pe.coff_sections, header, fn sec, image ->
+      Enum.reduce(sections, image, fn sec, image ->
         binary_pad_trailing(image, sec.pointer_to_raw_data) <> sec.raw_data
       end)
 
     image =
-      if pe.coff_header.certificate_data != nil do
-        {start, _size} = pe.coff_header.certificate_table
-        binary_pad_trailing(image, start) <> pe.coff_header.certificate_data
+      if header.certificate_data != nil do
+        {start, _size} = header.certificate_table
+        binary_pad_trailing(image, start) <> header.certificate_data
       else
         image
       end
 
-    image
+    image <> rest
   end
 
   defp encode_header(%LibPE{meta: meta, meta2: meta2, msdos_stub: msdos_stub} = pe) do
@@ -234,6 +243,18 @@ defmodule LibPE do
             Map.put(header, field_name, {virtual_address, virtual_size})
         end
       end)
+
+    header =
+      case List.last(sections) do
+        %LibPE.Section{virtual_address: addr, virtual_size: size} ->
+          %LibPE.OptionalHeader{
+            header
+            | size_of_image: ceil((addr + size) / virtual_alignment) * virtual_alignment
+          }
+
+        nil ->
+          header
+      end
 
     %LibPE{pe | coff_sections: sections, coff_header: header}
   end
