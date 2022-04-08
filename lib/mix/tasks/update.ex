@@ -8,8 +8,8 @@ defmodule Mix.Tasks.Pe.Update do
     Options are:
 
         -h | -help                        This help
-        --set-icon <filename>             Embeds a given side-by-side manifest
-        --set-manifest <filename>         Embeds a given application icon
+        --set-icon <filename>             Embeds a given application icon
+        --set-manifest <filename>         Embeds a given side-by-side manifest
         --set-resource <type> <filename>  Embeds any resources type
 
     Known resources types are:
