@@ -406,12 +406,12 @@ defmodule LibPE.ResourceTable do
     end)
   end
 
-  def dump(nil) do
-    IO.puts("NO RESOURCE TABLE")
-  end
-
-  def dump(data) do
-    dump(data, 0)
+  def dump(data, opts \\ []) do
+    if data == nil do
+      IO.puts("NO RESOURCE TABLE")
+    else
+      dump(data, 0, opts)
+    end
   end
 
   defp dump(
@@ -422,7 +422,8 @@ defmodule LibPE.ResourceTable do
            minor_version: _minor_version,
            entries: entries
          },
-         level
+         level,
+         opts
        ) do
     # Those values are always 0 it seems
     # IO.puts(
@@ -432,11 +433,11 @@ defmodule LibPE.ResourceTable do
     # )
 
     Enum.each(entries, fn entry ->
-      dump(entry, level)
+      dump(entry, level, opts)
     end)
   end
 
-  defp dump(%DirEntry{name: name, entry: entry}, level) do
+  defp dump(%DirEntry{name: name, entry: entry}, level, opts) do
     label =
       case level do
         0 -> "TYPE: #{inspect(LibPE.ResourceTypes.decode(name))}"
@@ -445,16 +446,46 @@ defmodule LibPE.ResourceTable do
         _other -> inspect(name)
       end
 
+    opts =
+      if level == 0 do
+        Keyword.put(opts, :type, name)
+      else
+        opts
+      end
+
     IO.puts("#{dup(level)} DIRENTRY: #{label}")
-    dump(entry, level + 1)
+    dump(entry, level + 1, opts)
   end
 
-  defp dump(%DataBlob{data_rva: _data_rva, data: data, codepage: codepage}, level) do
+  defp dump(%DataBlob{data_rva: _data_rva, data: data, codepage: codepage}, level, opts) do
     IO.puts(
       "#{dup(level)} DATA size: #{byte_size(data)}, codepage: #{
         inspect(LibPE.Codepage.decode(codepage))
       }"
     )
+
+    cond do
+      Keyword.get(opts, :type, nil) == 16 ->
+        version_info = LibPE.VersionInfo.decode(data)
+        IO.puts("#{dup(level + 1)} Version Params =>")
+
+        for {key, value} <- version_info.strings do
+          IO.puts("#{dup(level + 2)} #{String.pad_trailing(key, 20)} = #{value}")
+        end
+
+        IO.puts("#{dup(level + 1)} Version Flags =>")
+
+        for {key, value} <- version_info.version_info do
+          key = Atom.to_string(key)
+          IO.puts("#{dup(level + 2)} :#{String.pad_trailing(key, 20)} = #{inspect(value)}")
+        end
+
+      Keyword.get(opts, :values, false) ->
+        IO.puts("#{dup(level + 1)} VALUE: #{Base.encode16(data)}")
+
+      true ->
+        :ok
+    end
   end
 
   defp dup(level) do

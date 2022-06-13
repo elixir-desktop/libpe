@@ -1,6 +1,6 @@
 defmodule Mix.Tasks.Pe.Dump do
   @moduledoc """
-    SYNTAX: mix pe.dump (--raw) <filename> (<filename>...)
+    SYNTAX: mix pe.dump (--raw) (--values) <filename> (<filename>...)
 
     pe.dump dumps the contents of a PE file.
   """
@@ -12,7 +12,10 @@ defmodule Mix.Tasks.Pe.Dump do
   end
 
   def run(args) do
-    %{files: files, raw: raw} = process_args(%{files: [], raw: false}, args)
+    %{files: files, raw: raw, values: values} =
+      process_args(%{files: [], raw: false, values: false}, args)
+
+    opts = [values: values]
 
     Enum.each(files, fn filename ->
       {:ok, pe} = LibPE.parse_file(filename)
@@ -25,7 +28,7 @@ defmodule Mix.Tasks.Pe.Dump do
         IO.inspect(pe)
       else
         LibPE.get_resources(pe)
-        |> LibPE.ResourceTable.dump()
+        |> LibPE.ResourceTable.dump(opts)
       end
 
       IO.puts("")
@@ -39,6 +42,11 @@ defmodule Mix.Tasks.Pe.Dump do
 
   defp process_args(opts, []) do
     opts
+  end
+
+  defp process_args(opts, ["--values" | rest]) do
+    %{opts | values: true}
+    |> process_args(rest)
   end
 
   defp process_args(opts, ["--raw" | rest]) do
