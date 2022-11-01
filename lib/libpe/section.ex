@@ -2,21 +2,19 @@ defmodule LibPE.Section do
   @moduledoc false
   alias LibPE.Section
 
-  defstruct [
-    :name,
-    :padding,
-    :virtual_data,
-    :virtual_size,
-    :virtual_address,
-    :raw_data,
-    :size_of_raw_data,
-    :pointer_to_raw_data,
-    :pointer_to_relocations,
-    :pointer_to_linenumbers,
-    :number_of_relocations,
-    :number_of_linenumbers,
-    :flags
-  ]
+  defstruct name: nil,
+            padding: "\0",
+            virtual_data: "",
+            virtual_size: 0,
+            virtual_address: 0,
+            raw_data: "",
+            size_of_raw_data: 0,
+            pointer_to_raw_data: 0,
+            pointer_to_relocations: 0,
+            pointer_to_linenumbers: 0,
+            number_of_relocations: 0,
+            number_of_linenumbers: 0,
+            flags: 0
 
   def parse(rest, number, full_image) do
     List.duplicate(nil, number)

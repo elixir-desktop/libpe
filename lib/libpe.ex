@@ -263,17 +263,26 @@ defmodule LibPE do
         LibPE.ResourceTable.parse(virtual_data, virtual_address)
 
       nil ->
-        nil
+        %LibPE.ResourceTable{}
     end
   end
 
-  def set_resources(%LibPE{coff_sections: sections} = pe, resources = %LibPE.ResourceTable{}) do
+  defp ensure_resource_section(%LibPE{coff_sections: sections} = pe) do
+    idx = Enum.find_index(sections, fn %LibPE.Section{name: name} -> name == ".rsrc" end)
+
+    if idx == nil do
+      %LibPE{pe | coff_sections: sections ++ [%LibPE.Section{name: ".rsrc"}]}
+    else
+      pe
+    end
+  end
+
+  def set_resources(pe, resources = %LibPE.ResourceTable{}) do
     # need to ensure that the virtual_address is up-to-date
-    pe = update_layout(pe)
+    %LibPE{coff_sections: sections} = pe = update_layout(ensure_resource_section(pe))
 
     # now fetching and setting the resource
     idx = Enum.find_index(sections, fn %LibPE.Section{name: name} -> name == ".rsrc" end)
-
     section = %LibPE.Section{virtual_address: virtual_address} = Enum.at(sections, idx)
     data = LibPE.ResourceTable.encode(resources, virtual_address)
     section = %LibPE.Section{section | virtual_data: data}

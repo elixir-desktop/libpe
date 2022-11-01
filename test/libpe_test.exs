@@ -44,6 +44,24 @@ defmodule LibPETest do
     end
   end
 
+  test "set icon" do
+    {:ok, pe} = LibPE.parse_file("test/hello.exe")
+
+    resource_table = LibPE.get_resources(pe)
+
+    data = File.read!("test/logo.ico")
+    type = LibPE.ResourceTypes.encode("RT_ICON")
+    resource_table = LibPE.ResourceTable.set_resource(resource_table, type, data)
+
+    raw =
+      LibPE.set_resources(pe, resource_table)
+      |> LibPE.update_layout()
+      |> LibPE.update_checksum()
+      |> LibPE.encode()
+
+    File.write!("test/hello-out.exe", raw)
+  end
+
   # defp tip(rsrc) do
   #   clean_data(hd(rsrc.entries))
   # end
