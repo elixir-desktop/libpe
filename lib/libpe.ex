@@ -99,7 +99,7 @@ defmodule LibPE do
   end
 
   defp parse_coff(
-         pe = %LibPE{},
+         %LibPE{} = pe,
          <<machine::little-size(16), number_of_sections::little-size(16),
            timestamp::little-size(32), object_offset::little-size(32),
            object_entry_count::little-size(32), coff_header_size::little-size(16),
@@ -142,9 +142,7 @@ defmodule LibPE do
 
     number_of_sections = length(sections)
 
-    sections =
-      Enum.map(sections, &LibPE.Section.encode/1)
-      |> Enum.join()
+    sections = Enum.map_join(sections, &LibPE.Section.encode/1)
 
     <<machine::little-size(16), number_of_sections::little-size(16), timestamp::little-size(32),
       object_offset::little-size(32), object_entry_count::little-size(32),

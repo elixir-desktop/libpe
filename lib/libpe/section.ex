@@ -31,7 +31,7 @@ defmodule LibPE.Section do
            size_of_raw_data::little-size(32), pointer_to_raw_data::little-size(32),
            pointer_to_relocations::little-size(32), pointer_to_linenumbers::little-size(32),
            number_of_relocations::little-size(16), number_of_linenumbers::little-size(16),
-           flags::little-size(32), rest::binary()>>,
+           flags::little-size(32), rest::binary>>,
          full_image
        ) do
     raw_data = binary_part(full_image, pointer_to_raw_data, size_of_raw_data)

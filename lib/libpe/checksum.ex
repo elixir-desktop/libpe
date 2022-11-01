@@ -3,7 +3,7 @@ defmodule LibPE.Checksum do
     Elixir implementation of the PE checksum algorithm by David N. Cutler 1993
     from https://bytepointer.com/resources/microsoft_pe_checksum_algo_distilled.htm
   """
-  use Bitwise
+  import Bitwise
   @max_word 0xFFFF
   @max_long 0xFFFFFFFF
   @max_long_long 0xFFFFFFFFFFFFFFFF

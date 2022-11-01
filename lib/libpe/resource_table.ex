@@ -7,7 +7,7 @@ defmodule LibPE.ResourceTable do
       Type > Name > Language
   """
   alias LibPE.ResourceTable
-  use Bitwise
+  import Bitwise
 
   defstruct characteristics: 0,
             timestamp: 0,
@@ -195,7 +195,7 @@ defmodule LibPE.ResourceTable do
            major_version: major_version,
            minor_version: minor_version
          } = table,
-         context = %EncodeContext{}
+         %EncodeContext{} = context
        ) do
     entries = sorted_entries(table)
     number_of_id_entries = Enum.count(entries, fn %DirEntry{name: name} -> is_integer(name) end)
@@ -294,11 +294,11 @@ defmodule LibPE.ResourceTable do
            entry: entry,
            raw_entry: raw_entry
          },
-         context = %EncodeContext{
+         %EncodeContext{
            names: names,
            tables: tables,
            data_entries: data_entries
-         }
+         } = context
        ) do
     {raw_name, context} =
       cond do
@@ -459,9 +459,7 @@ defmodule LibPE.ResourceTable do
 
   defp dump(%DataBlob{data_rva: _data_rva, data: data, codepage: codepage}, level, opts) do
     IO.puts(
-      "#{dup(level)} DATA size: #{byte_size(data)}, codepage: #{
-        inspect(LibPE.Codepage.decode(codepage))
-      }"
+      "#{dup(level)} DATA size: #{byte_size(data)}, codepage: #{inspect(LibPE.Codepage.decode(codepage))}"
     )
 
     cond do

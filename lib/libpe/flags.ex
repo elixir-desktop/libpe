@@ -1,6 +1,6 @@
 defmodule LibPE.Flags do
   @moduledoc false
-  use Bitwise
+  import Bitwise
 
   defmacro __using__(opts) do
     if :many in opts do
