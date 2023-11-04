@@ -14,6 +14,31 @@ defmodule LibPETest do
     end
   end
 
+  test "test version encode/decode" do
+    for filename <- test_files() do
+      raw = File.read!(filename)
+      {:ok, pe} = LibPE.parse_string(raw)
+      resource_table = LibPE.get_resources(pe)
+      version = LibPE.ResourceTable.get_resource(resource_table, "RT_VERSION")
+
+      if version != nil do
+        info = LibPE.VersionInfo.decode(version.entry.data)
+        assert LibPE.VersionInfo.encode_version_info(info.version_info) == info.version_info_raw
+        assert dump16(LibPE.VersionInfo.encode(info)) == dump16(version.entry.data)
+      end
+    end
+  end
+
+  defp dump16(bin) do
+    for <<a, b <- bin>> do
+      case <<a, b>> do
+        <<a, 0>> -> if String.printable?(<<a>>), do: <<a>>, else: "[#{a}]"
+        <<x::little-size(16)>> -> "#{x},"
+      end
+    end
+    |> Enum.join()
+  end
+
   test "test update file" do
     for filename <- test_files() do
       raw = File.read!(filename)

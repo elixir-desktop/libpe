@@ -114,11 +114,10 @@ defmodule LibPE.ResourceTable do
   def set_resource(
         table = %ResourceTable{entries: entries},
         resource_type,
-        data,
+        entry_or_data,
         codepage \\ 0,
         language \\ 1033
-      )
-      when is_binary(data) do
+      ) do
     type = LibPE.ResourceTypes.encode(resource_type)
     if type == nil, do: raise("ResourceType #{resource_type} is unknown")
     page = LibPE.Codepage.encode(codepage)
@@ -126,22 +125,22 @@ defmodule LibPE.ResourceTable do
     lang = LibPE.Language.encode(language)
     if lang == nil, do: raise("Language #{language} is unknown")
 
+    target_entry =
+      case entry_or_data do
+        bin when is_binary(bin) ->
+          %DirEntry{name: lang, entry: %DataBlob{codepage: page, data: bin}}
+
+        %DirEntry{} ->
+          entry_or_data
+      end
+
     entry =
       Enum.find(entries, %DirEntry{name: type}, fn %DirEntry{name: name} -> type == name end)
 
     entry = %DirEntry{
       entry
       | entry: %ResourceTable{
-          entries: [
-            %DirEntry{
-              name: 1,
-              entry: %ResourceTable{
-                entries: [
-                  %DirEntry{name: lang, entry: %DataBlob{codepage: page, data: data}}
-                ]
-              }
-            }
-          ]
+          entries: [%DirEntry{name: 1, entry: %ResourceTable{entries: [target_entry]}}]
         }
     }
 
@@ -155,6 +154,31 @@ defmodule LibPE.ResourceTable do
       end
 
     %ResourceTable{table | entries: entries}
+  end
+
+  def get_resource(%ResourceTable{entries: entries}, resource_type) do
+    type = LibPE.ResourceTypes.encode(resource_type)
+    if type == nil, do: raise("ResourceType #{resource_type} is unknown")
+
+    case Enum.find(entries, fn %DirEntry{name: name} -> type == name end) do
+      nil ->
+        nil
+
+      %DirEntry{
+        entry: %ResourceTable{
+          entries: [
+            %DirEntry{
+              entry: %ResourceTable{
+                entries: [
+                  entry = %DirEntry{name: _lang, entry: %DataBlob{codepage: _page, data: _data}}
+                ]
+              }
+            }
+          ]
+        }
+      } ->
+        entry
+    end
   end
 
   def encode(resource_table, image_offset) do

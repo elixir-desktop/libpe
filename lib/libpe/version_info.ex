@@ -1,6 +1,17 @@
 defmodule LibPE.VersionInfo do
   alias LibPE.VersionInfo
-  defstruct [:version_info, :var, :strings]
+
+  defstruct [
+    :version_info,
+    :version_info_raw,
+    :var,
+    :var_type,
+    :strings,
+    :strings_type,
+    :strings_encoding,
+    :type,
+    :tail
+  ]
 
   @moduledoc """
     Module to decode/encode RT_VERSION information in resources
@@ -13,7 +24,7 @@ defmodule LibPE.VersionInfo do
   """
 
   def decode(data) do
-    <<_length::little-size(16), value_length::little-size(16), _type::little-size(16),
+    <<_length::little-size(16), value_length::little-size(16), type::little-size(16),
       rest::binary>> = data
 
     # IO.inspect({length, value_length, type})
@@ -21,13 +32,39 @@ defmodule LibPE.VersionInfo do
 
     rest = skip_padding(rest)
     <<file_info::binary-size(value_length), rest::binary>> = rest
-    children = skip_padding(rest)
 
-    info = %VersionInfo{version_info: decode_version_info(file_info)}
+    info = %VersionInfo{
+      version_info: decode_version_info(file_info),
+      version_info_raw: file_info,
+      type: type
+    }
+
     # there can be up to two
-    {children, info} = decode_children(children, info)
-    {_tail, info} = decode_children(children, info)
-    info
+    {rest, info} = decode_children(skip_padding(rest), info)
+    {rest, info} = decode_children(skip_padding(rest), info)
+    %VersionInfo{info | tail: rest}
+  end
+
+  def encode(info = %VersionInfo{version_info: version_info, type: type, tail: tail}, offset \\ 0) do
+    sz_key = encode_wchar("VS_VERSION_INFO")
+    prefix_len = 6 + byte_size(sz_key)
+    padding1 = maybe_padding(offset + prefix_len)
+    file_info = encode_version_info(version_info)
+    value_length = byte_size(file_info)
+    padding2 = maybe_padding(offset + prefix_len + value_length + byte_size(padding1))
+
+    children =
+      encode_children(
+        info,
+        offset + prefix_len + value_length + byte_size(padding1) + byte_size(padding2)
+      )
+
+    length =
+      prefix_len + value_length + byte_size(padding1) + byte_size(padding2) + byte_size(children)
+
+    <<length::little-size(16), value_length::little-size(16), type::little-size(16),
+      sz_key::binary, padding1::binary, file_info::binary, padding2::binary, children::binary,
+      tail::binary>>
   end
 
   # https://docs.microsoft.com/en-us/windows/win32/api/verrsrc/ns-verrsrc-vs_fixedfileinfo
@@ -63,6 +100,48 @@ defmodule LibPE.VersionInfo do
     }
   end
 
+  def encode_version_info(%{
+        # dwSignature: 0xFEEF04BD,
+        dwStrucVersion: dwStrucVersion,
+        dwFileVersionMS: dwFileVersionMS,
+        dwFileVersionLS: dwFileVersionLS,
+        dwProductVersionMS: dwProductVersionMS,
+        dwProductVersionLS: dwProductVersionLS,
+        dwFileFlagsMask: dwFileFlagsMask,
+        dwFileFlags: dwFileFlags,
+        dwFileOS: dwFileOS,
+        dwFileType: dwFileType,
+        dwFileSubtype: dwFileSubtype,
+        dwFileDate: dwFileDate
+      }) do
+    dwStrucVersion = dwStrucVersion + 0xFFFF
+    dwFileVersionMS = dwFileVersionMS + 0xFFFF
+    dwFileVersionLS = dwFileVersionLS + 0xFFFF
+    dwProductVersionMS = dwProductVersionMS + 0xFFFF
+    dwProductVersionLS = dwProductVersionLS + 0xFFFF
+    dwFileFlags = LibPE.FileFlags.encode(dwFileFlags)
+    dwFileOS = LibPE.OSFlags.encode(dwFileOS)
+    dwFileType = LibPE.FileTypeFlags.encode(dwFileType)
+    dwFileSubtype = LibPE.FileSubtypeFlags.encode(dwFileSubtype)
+
+    <<
+      0xFEEF04BD::little-size(32),
+      dwStrucVersion::little-size(32),
+      dwFileVersionMS::little-size(32),
+      dwFileVersionLS::little-size(32),
+      dwProductVersionMS::little-size(32),
+      dwProductVersionLS::little-size(32),
+      dwFileFlagsMask::little-size(32),
+      dwFileFlags::little-size(32),
+      dwFileOS::little-size(32),
+      dwFileType::little-size(32),
+      dwFileSubtype::little-size(32),
+      dwFileDate::little-size(64)
+      #  dwFileDateMS::little-size(32),
+      #  dwFileDateLS::little-size(32)
+    >>
+  end
+
   # https://docs.microsoft.com/en-us/windows/win32/menurc/varfileinfo
   defp decode_children(
          <<length::little-size(16), _value_length::little-size(16), _type::little-size(16),
@@ -71,7 +150,6 @@ defmodule LibPE.VersionInfo do
        ) do
     children_length = length - 6
     <<children::binary-size(children_length), rest::binary>> = rest
-    rest = skip_padding(rest)
 
     {sz_key, children} = decode_wchar(children, "")
     # IO.inspect({length, value_length, sz_key, type})
@@ -83,8 +161,23 @@ defmodule LibPE.VersionInfo do
     end
   end
 
+  defp encode_children(info = %VersionInfo{}, offset) do
+    strings = wrap_child(info, "StringFileInfo", &encode_string_table/2, offset)
+    padding1 = maybe_padding(offset + byte_size(strings))
+
+    var =
+      wrap_child(
+        info,
+        "VarFileInfo",
+        &encode_var/2,
+        offset + byte_size(strings) + byte_size(padding1)
+      )
+
+    <<strings::binary, padding1::binary, var::binary>>
+  end
+
   defp decode_var(
-         <<length::little-size(16), value_length::little-size(16), _type::little-size(16),
+         <<length::little-size(16), value_length::little-size(16), type::little-size(16),
            rest::binary>>,
          info
        ) do
@@ -93,19 +186,75 @@ defmodule LibPE.VersionInfo do
     rest = skip_padding(rest)
     # IO.inspect({:var, type, rest})
     ^value_length = byte_size(rest)
-    %VersionInfo{info | var: rest}
+    %VersionInfo{info | var: rest, var_type: type}
+  end
+
+  defp wrap_child(info, name, fun, offset) do
+    child_key = encode_wchar(name)
+    padding1 = maybe_padding(offset + 6 + byte_size(child_key))
+    offset = offset + 6 + byte_size(child_key) + byte_size(padding1)
+
+    case fun.(info, offset) do
+      "" ->
+        ""
+
+      bin ->
+        length = 6 + byte_size(child_key) + byte_size(padding1) + byte_size(bin)
+        value_length = 0
+        type = 1
+
+        <<length::little-size(16), value_length::little-size(16), type::little-size(16),
+          child_key::binary, padding1::binary, bin::binary>>
+    end
+  end
+
+  defp encode_var(%VersionInfo{var: nil}, _offset), do: ""
+
+  defp encode_var(%VersionInfo{var: var, var_type: type}, offset) do
+    sz_key = encode_wchar("Translation")
+    padding1 = maybe_padding(offset + 6 + byte_size(sz_key))
+    value_length = byte_size(var)
+    length = 6 + byte_size(sz_key) + byte_size(padding1) + value_length
+
+    <<length::little-size(16), value_length::little-size(16), type::little-size(16),
+      sz_key::binary, padding1::binary, var::binary>>
   end
 
   # https://docs.microsoft.com/en-us/windows/win32/menurc/stringtable
   defp decode_string_table(
-         <<length::little-size(16), 0::little-size(16), _type::little-size(16), rest::binary>>,
+         <<length::little-size(16), 0::little-size(16), type::little-size(16), rest::binary>>,
          info
        ) do
     ^length = byte_size(rest) + 6
     {encoding, rest} = decode_wchar(rest, "")
     rest = skip_padding(rest)
     # IO.inspect({:var, type, sz_key, rest})
-    %VersionInfo{info | strings: decode_strings(rest, encoding, %{})}
+    %VersionInfo{
+      info
+      | strings: decode_strings(rest, encoding, []),
+        strings_type: type,
+        strings_encoding: encoding
+    }
+  end
+
+  defp encode_string_table(
+         %VersionInfo{strings: strings, strings_type: type, strings_encoding: encoding},
+         offset
+       ) do
+    encoding = encode_wchar(encoding)
+    padding1 = maybe_padding(offset + 6 + byte_size(encoding))
+
+    rest =
+      encode_strings(
+        Enum.to_list(strings),
+        encoding,
+        offset + 6 + byte_size(encoding) + byte_size(padding1)
+      )
+
+    length = 6 + byte_size(encoding) + byte_size(padding1) + byte_size(rest)
+
+    <<length::little-size(16), 0::little-size(16), type::little-size(16), encoding::binary,
+      padding1::binary, rest::binary>>
   end
 
   defp decode_strings("", _encoding, strings) do
@@ -125,7 +274,25 @@ defmodule LibPE.VersionInfo do
     string = skip_padding(string)
     {value, _tail} = decode_wchar(string, "")
     # IO.inspect({name, value})
-    decode_strings(skip_padding(rest), encoding, Map.put(strings, name, value))
+    decode_strings(skip_padding(rest), encoding, strings ++ [{name, value}])
+  end
+
+  defp encode_strings([{name, value} | rest], encoding, offset) do
+    padding1 = maybe_padding(offset)
+    name = encode_wchar(name)
+    padding2 = maybe_padding(offset + 6 + byte_size(name) + byte_size(padding1))
+    value = encode_wchar(value)
+    length = 6 + byte_size(name) + byte_size(value) + byte_size(padding2)
+    value_length = div(byte_size(value), 2)
+
+    <<padding1::binary, length::little-size(16), value_length::little-size(16),
+      1::little-size(16), name::binary, padding2::binary,
+      value::binary>> <>
+      encode_strings(rest, encoding, offset + length)
+  end
+
+  defp encode_strings([], _encoding, _offset) do
+    ""
   end
 
   defp skip_padding(<<0, 0, rest::binary>>) do
@@ -136,6 +303,10 @@ defmodule LibPE.VersionInfo do
     other
   end
 
+  defp maybe_padding(num) do
+    if rem(num, 4) == 2, do: "\0\0", else: ""
+  end
+
   defp decode_wchar(<<0, 0, rest::binary>>, str) do
     str = :unicode.characters_to_binary(str, {:utf16, :little}, :utf8)
     {str, rest}
@@ -143,6 +314,10 @@ defmodule LibPE.VersionInfo do
 
   defp decode_wchar(<<char::binary-size(2), rest::binary>>, str) do
     decode_wchar(rest, str <> char)
+  end
+
+  defp encode_wchar(utf8) do
+    :unicode.characters_to_binary(utf8, :utf8, {:utf16, :little}) <> "\0\0"
   end
 
   def language_id() do
