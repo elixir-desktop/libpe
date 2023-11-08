@@ -503,9 +503,17 @@ defmodule LibPE.ResourceTable do
         end
 
       Keyword.get(opts, :values, false) ->
-        IO.puts("#{dup(level + 1)} VALUE: #{Base.encode16(data)}")
+        value =
+          if String.printable?(data) do
+            inspect(data, limit: :infinity)
+          else
+            "0x" <> Base.encode16(data, case: :lower)
+          end
+
+        IO.puts("#{dup(level + 1)} VALUE: #{value}")
 
       true ->
+        IO.puts("#{dup(level + 1)} VALUE: #{inspect(data)}")
         :ok
     end
   end
