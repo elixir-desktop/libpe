@@ -118,7 +118,9 @@ defmodule Mix.Tasks.Pe.Update do
   defp process_args(opts, ["--set-icon", filename | rest]) do
     case File.read(filename) do
       {:ok, data} ->
-        add_resource(opts, "RT_ICON", data)
+        opts
+        |> add_resource("RT_ICON", data)
+        |> drop_resource("RT_GROUP_ICON")
         |> process_args(rest)
 
       error ->
@@ -174,6 +176,10 @@ defmodule Mix.Tasks.Pe.Update do
 
     %{opts | files: [arg | opts.files]}
     |> process_args(rest)
+  end
+
+  defp drop_resource(opts, name) do
+    add_resource(opts, name, nil)
   end
 
   defp add_resource(opts, name, data) do

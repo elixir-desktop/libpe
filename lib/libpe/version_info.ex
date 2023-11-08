@@ -45,7 +45,7 @@ defmodule LibPE.VersionInfo do
       var: <<9, 4, 228, 4>>,
       var_type: 0,
       tail: "",
-      type: 0,
+      type: 0
     }
   end
 

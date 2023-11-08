@@ -111,12 +111,30 @@ defmodule LibPE.ResourceTable do
     ```
 
   """
+  def set_resource(table, resource_type, entry_or_data, codepage \\ 0, language \\ 1033)
+
+  def set_resource(table = %ResourceTable{entries: entries}, resource_type, nil, _, _) do
+    type = LibPE.ResourceTypes.encode(resource_type)
+    if type == nil, do: raise("ResourceType #{resource_type} is unknown")
+
+    idx = Enum.find_index(entries, fn %DirEntry{name: name} -> type == name end)
+
+    entries =
+      if idx == nil do
+        entries
+      else
+        sorted_entries(%ResourceTable{table | entries: List.delete_at(entries, idx)})
+      end
+
+    %ResourceTable{table | entries: entries}
+  end
+
   def set_resource(
         table = %ResourceTable{entries: entries},
         resource_type,
         entry_or_data,
-        codepage \\ 0,
-        language \\ 1033
+        codepage,
+        language
       ) do
     type = LibPE.ResourceTypes.encode(resource_type)
     if type == nil, do: raise("ResourceType #{resource_type} is unknown")
@@ -502,13 +520,13 @@ defmodule LibPE.ResourceTable do
           IO.puts("#{dup(level + 2)} :#{String.pad_trailing(key, 20)} = #{inspect(value)}")
         end
 
-        # IO.puts("#{dup(level + 1)} Version Metadata =>")
-        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("str_encoding", 20)} = #{inspect(version_info.strings_encoding)}")
-        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("str_type", 20)} = #{inspect(version_info.strings_type)}")
-        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("var", 20)} = #{inspect(version_info.var)}")
-        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("var_type", 20)} = #{inspect(version_info.var_type)}")
-        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("type", 20)} = #{inspect(version_info.type)}")
-        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("tail", 20)} = #{inspect(version_info.tail)}")
+      # IO.puts("#{dup(level + 1)} Version Metadata =>")
+      # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("str_encoding", 20)} = #{inspect(version_info.strings_encoding)}")
+      # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("str_type", 20)} = #{inspect(version_info.strings_type)}")
+      # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("var", 20)} = #{inspect(version_info.var)}")
+      # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("var_type", 20)} = #{inspect(version_info.var_type)}")
+      # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("type", 20)} = #{inspect(version_info.type)}")
+      # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("tail", 20)} = #{inspect(version_info.tail)}")
 
       Keyword.get(opts, :values, false) ->
         value =
