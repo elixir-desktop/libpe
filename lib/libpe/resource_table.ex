@@ -502,6 +502,14 @@ defmodule LibPE.ResourceTable do
           IO.puts("#{dup(level + 2)} :#{String.pad_trailing(key, 20)} = #{inspect(value)}")
         end
 
+        # IO.puts("#{dup(level + 1)} Version Metadata =>")
+        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("str_encoding", 20)} = #{inspect(version_info.strings_encoding)}")
+        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("str_type", 20)} = #{inspect(version_info.strings_type)}")
+        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("var", 20)} = #{inspect(version_info.var)}")
+        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("var_type", 20)} = #{inspect(version_info.var_type)}")
+        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("type", 20)} = #{inspect(version_info.type)}")
+        # IO.puts("#{dup(level + 2)} :#{String.pad_trailing("tail", 20)} = #{inspect(version_info.tail)}")
+
       Keyword.get(opts, :values, false) ->
         value =
           if String.printable?(data) do

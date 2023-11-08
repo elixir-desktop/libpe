@@ -33,8 +33,10 @@ defmodule LibPE.Flags do
         value
 
       name when is_binary(value) ->
-        {_, value, _} = Enum.find(module.flags(), fn {ename, _, _} -> name == ename end)
-        value
+        case Enum.find(module.flags(), fn {ename, _, _} -> name == ename end) do
+          {_, value, _} -> value
+          nil -> raise "Unknown #{module} flag: #{inspect name}"
+        end
     end
   end
 

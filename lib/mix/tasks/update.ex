@@ -139,6 +139,19 @@ defmodule Mix.Tasks.Pe.Update do
 
   defp process_args(opts, ["--set-info", name, value | rest]) do
     update = fn version ->
+      page = LibPE.Codepage.encode(0)
+      lang = LibPE.Language.encode(1033)
+
+      version =
+        version ||
+          %LibPE.ResourceTable.DirEntry{
+            name: lang,
+            entry: %LibPE.ResourceTable.DataBlob{
+              codepage: page,
+              data: LibPE.VersionInfo.encode(LibPE.VersionInfo.new())
+            }
+          }
+
       data =
         LibPE.VersionInfo.decode(version.entry.data)
         |> Map.update!(:strings, fn strings -> List.keystore(strings, name, 0, {name, value}) end)

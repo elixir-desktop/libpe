@@ -23,6 +23,32 @@ defmodule LibPE.VersionInfo do
     when shown in file details and in the task manager
   """
 
+  def new() do
+    %LibPE.VersionInfo{
+      version_info: %{
+        dwStrucVersion: 1,
+        dwFileVersionMS: 1_507_332,
+        dwFileVersionLS: 196_622,
+        dwProductVersionMS: 720_900,
+        dwProductVersionLS: 65550,
+        dwFileFlagsMask: 0,
+        dwFileFlags: [],
+        dwFileOS: "VOS_UNKNOWN",
+        dwFileType: "VFT_UNKNOWN",
+        dwFileSubtype: "VFT2_UNKNOWN",
+        dwFileDate: 0
+      },
+      # magic constant https://learn.microsoft.com/en-us/windows/win32/menurc/versioninfo-resource
+      strings_encoding: "040904e4",
+      strings_type: 1,
+      strings: [],
+      var: <<9, 4, 228, 4>>,
+      var_type: 0,
+      tail: "",
+      type: 0,
+    }
+  end
+
   def decode(data) do
     <<_length::little-size(16), value_length::little-size(16), type::little-size(16),
       rest::binary>> = data
