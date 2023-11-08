@@ -145,6 +145,7 @@ defmodule Mix.Tasks.Pe.Update do
       else
         File.write!(filename, icon.entry.data)
       end
+
       icon
     end)
     |> process_args(rest)

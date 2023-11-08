@@ -17,7 +17,8 @@ defmodule LibPE.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       docs: docs(),
-      package: package()
+      package: package(),
+      aliases: aliases()
     ]
   end
 
@@ -26,7 +27,11 @@ defmodule LibPE.MixProject do
   end
 
   defp deps do
-    [{:ex_doc, "~> 0.25", only: :dev, runtime: false}]
+    [
+      {:ex_doc, "~> 0.25", only: :dev, runtime: false},
+      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.0", only: [:dev], runtime: false}
+    ]
   end
 
   defp package do
@@ -48,6 +53,17 @@ defmodule LibPE.MixProject do
       source_ref: "v#{@version}",
       source_url: @url,
       formatters: ["html"]
+    ]
+  end
+
+  defp aliases() do
+    [
+      lint: [
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        "credo --ignore refactor",
+        "dialyzer"
+      ]
     ]
   end
 end
