@@ -9,9 +9,11 @@ defmodule Mix.Tasks.Pe.Update do
 
         -h | -help                        This help
         --set-icon <filename>             Embeds a given application icon
+        --get-icon <filename>             Extracts an embedded icon and stores it to the filename
         --set-manifest <filename>         Embeds a given side-by-side manifest
         --set-info <info_type> <value>    Embeds the given version information
         --set-resource <type> <filename>  Embeds any resources type
+        --del-resource <type>             Remove any resources type
 
     Known info types are:
 
@@ -87,12 +89,16 @@ defmodule Mix.Tasks.Pe.Update do
       Enum.reduce(updates, resource_table, fn {type, funs}, resource_table ->
         resource = LibPE.ResourceTable.get_resource(resource_table, type)
 
-        resource =
+        new_resource =
           Enum.reduce(funs, resource, fn fun, resource ->
             fun.(resource)
           end)
 
-        LibPE.ResourceTable.set_resource(resource_table, type, resource)
+        if new_resource != resource do
+          LibPE.ResourceTable.set_resource(resource_table, type, new_resource)
+        else
+          resource_table
+        end
       end)
 
     LibPE.set_resources(pe, resource_table)
@@ -128,6 +134,22 @@ defmodule Mix.Tasks.Pe.Update do
     end
   end
 
+  defp process_args(opts, ["--get-icon", filename | rest]) do
+    if File.exists?(filename) do
+      error("The output file already exists: #{filename}")
+    end
+
+    update_resource(opts, "RT_ICON", fn icon ->
+      if icon == nil do
+        Mix.Shell.IO.error("No icon found in the file")
+      else
+        File.write!(filename, icon.entry.data)
+      end
+      icon
+    end)
+    |> process_args(rest)
+  end
+
   defp process_args(opts, ["--set-resource", name, filename | rest]) do
     data =
       case File.read(filename) do
@@ -136,6 +158,11 @@ defmodule Mix.Tasks.Pe.Update do
       end
 
     add_resource(opts, name, data)
+    |> process_args(rest)
+  end
+
+  defp process_args(opts, ["--del-resource", name | rest]) do
+    add_resource(opts, name, nil)
     |> process_args(rest)
   end
 
