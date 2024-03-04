@@ -8,6 +8,7 @@ defmodule Mix.Tasks.Pe.Update do
     Options are:
 
         -h | -help                        This help
+        --set-subsystem <subsystemcode>   Update the PE files subsytem type
         --set-icon <filename>             Embeds a given application icon
         --get-icon <filename>             Extracts an embedded icon and stores it to the filename
         --set-manifest <filename>         Embeds a given side-by-side manifest
@@ -37,8 +38,8 @@ defmodule Mix.Tasks.Pe.Update do
   end
 
   def run(args) do
-    %{files: files, resources: resources, updates: updates} =
-      process_args(%{resources: [], updates: %{}, files: []}, args)
+    %{files: files, resources: resources, resource_updates: resource_updates, updates: updates} =
+      process_args(%{resources: [], resource_updates: %{}, files: [], updates: []}, args)
 
     if files == [] do
       error("No files given")
@@ -50,7 +51,8 @@ defmodule Mix.Tasks.Pe.Update do
       IO.puts("Updating file #{filename}")
 
       raw =
-        update_resources(pe, resources, updates)
+        update_resources(pe, resources, resource_updates)
+        |> update_other(updates)
         |> LibPE.update_checksum()
         |> LibPE.encode()
 
@@ -69,15 +71,21 @@ defmodule Mix.Tasks.Pe.Update do
     System.halt()
   end
 
-  defp update_resources(pe, replacements, updates) do
-    if replacements == [] and map_size(updates) == 0 do
+  defp update_other(pe, updates) do
+    Enum.reduce(updates, pe, fn update, pe ->
+      update.(pe)
+    end)
+  end
+
+  defp update_resources(pe, replacements, resource_updates) do
+    if replacements == [] and map_size(resource_updates) == 0 do
       pe
     else
-      do_update_resources(pe, replacements, updates)
+      do_update_resources(pe, replacements, resource_updates)
     end
   end
 
-  defp do_update_resources(pe, replacements, updates) do
+  defp do_update_resources(pe, replacements, resource_updates) do
     resource_table = LibPE.get_resources(pe)
 
     resource_table =
@@ -86,7 +94,7 @@ defmodule Mix.Tasks.Pe.Update do
       end)
 
     resource_table =
-      Enum.reduce(updates, resource_table, fn {type, funs}, resource_table ->
+      Enum.reduce(resource_updates, resource_table, fn {type, funs}, resource_table ->
         resource = LibPE.ResourceTable.get_resource(resource_table, type)
 
         new_resource =
@@ -119,6 +127,21 @@ defmodule Mix.Tasks.Pe.Update do
         error("Failed to read manifest file #{filename}: #{inspect(error)}")
     end
     |> process_args(rest)
+  end
+
+  defp process_args(opts, ["--set-subsystem", value | rest]) do
+    LibPE.WindowsSubsystem.flags()
+    |> Enum.find(fn {name, num, _desc} -> value == name or value == "#{num}" end)
+    |> case do
+      nil ->
+        error(
+          "Failed find subsystem value '#{value}'. Valid values are: #{inspect(LibPE.WindowsSubsystem.flags())}"
+        )
+
+      sub ->
+        add_update(opts, fn pe -> %{pe | coff_header: %{pe.coff_header | subsystem: sub}} end)
+        |> process_args(rest)
+    end
   end
 
   defp process_args(opts, ["--set-icon", filename | rest]) do
@@ -210,6 +233,10 @@ defmodule Mix.Tasks.Pe.Update do
     add_resource(opts, name, nil)
   end
 
+  defp add_update(opts, update_fun) do
+    %{opts | updates: [update_fun | opts.updates]}
+  end
+
   defp add_resource(opts, name, data) do
     if not is_integer(name) and not LibPE.Flags.is_name(LibPE.ResourceTypes, name) do
       error("""
@@ -235,6 +262,11 @@ defmodule Mix.Tasks.Pe.Update do
     end
 
     name = LibPE.ResourceTypes.encode(name)
-    %{opts | updates: Map.update(opts.updates, name, [fun], fn rest -> rest ++ [fun] end)}
+
+    %{
+      opts
+      | resource_updates:
+          Map.update(opts.resource_updates, name, [fun], fn rest -> rest ++ [fun] end)
+    }
   end
 end

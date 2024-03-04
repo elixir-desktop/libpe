@@ -27,6 +27,9 @@ defmodule Mix.Tasks.Pe.Dump do
       if raw do
         IO.inspect(pe)
       else
+        IO.puts("Subsystem: #{inspect(pe.coff_header.subsystem)}")
+        IO.puts("")
+
         LibPE.get_resources(pe)
         |> LibPE.ResourceTable.dump(opts)
       end
