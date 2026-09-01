@@ -147,9 +147,10 @@ defmodule Mix.Tasks.Pe.Update do
   defp process_args(opts, ["--set-icon", filename | rest]) do
     case File.read(filename) do
       {:ok, data} ->
-        opts
-        |> add_resource("RT_ICON", data)
-        |> drop_resource("RT_GROUP_ICON")
+        add_update(opts, fn pe ->
+          resources = LibPE.get_resources(pe) |> LibPE.Icon.set(data)
+          LibPE.set_resources(pe, resources)
+        end)
         |> process_args(rest)
 
       error ->
@@ -162,14 +163,16 @@ defmodule Mix.Tasks.Pe.Update do
       error("The output file already exists: #{filename}")
     end
 
-    update_resource(opts, "RT_ICON", fn icon ->
-      if icon == nil do
-        Mix.Shell.IO.error("No icon found in the file")
-      else
-        File.write!(filename, icon.entry.data)
+    add_update(opts, fn pe ->
+      case LibPE.Icon.get(LibPE.get_resources(pe)) do
+        nil ->
+          Mix.Shell.IO.error("No icon found in the file")
+
+        ico ->
+          File.write!(filename, ico)
       end
 
-      icon
+      pe
     end)
     |> process_args(rest)
   end
@@ -227,10 +230,6 @@ defmodule Mix.Tasks.Pe.Update do
 
     %{opts | files: [arg | opts.files]}
     |> process_args(rest)
-  end
-
-  defp drop_resource(opts, name) do
-    add_resource(opts, name, nil)
   end
 
   defp add_update(opts, update_fun) do

@@ -1,7 +1,7 @@
 defmodule LibPE.MixProject do
   use Mix.Project
 
-  @version "1.2.3"
+  @version "1.3.0"
   @url "https://github.com/elixir-desktop/libpe"
 
   def project do

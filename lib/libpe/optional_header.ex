@@ -279,13 +279,24 @@ defmodule LibPE.OptionalHeader do
         full_image,
         header
       ) do
-    # The certificate table is special as it's appended to the image after all sections:
+    # The certificate table is special as it's appended to the image after all sections.
+    # rcedit and similar tools can leave a stale certificate directory that points past
+    # the file; treat that as unsigned rather than crashing PE updates.
     certificate_table = decode_table(certificate_table)
+    image_size = byte_size(full_image)
 
     certificate_data =
       case certificate_table do
-        {0, 0} -> nil
-        {address, size} -> binary_part(full_image, address, size)
+        {0, 0} ->
+          nil
+
+        {address, size}
+        when address >= 0 and size >= 0 and address <= image_size and
+               size <= image_size - address ->
+          binary_part(full_image, address, size)
+
+        _ ->
+          nil
       end
 
     %OptionalHeader{
