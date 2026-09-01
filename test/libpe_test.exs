@@ -69,21 +69,19 @@ defmodule LibPETest do
     end
   end
 
-  test "set icon" do
+  test "set icon via LibPE.Icon" do
     {:ok, pe} = LibPE.parse_file("test/hello.exe")
+    ico = File.read!("test/logo.ico")
 
-    resource_table = LibPE.get_resources(pe)
-
-    data = File.read!("test/logo.ico")
-    type = LibPE.ResourceTypes.encode("RT_ICON")
-    resource_table = LibPE.ResourceTable.set_resource(resource_table, type, data)
+    resources = LibPE.get_resources(pe) |> LibPE.Icon.set(ico)
 
     raw =
-      LibPE.set_resources(pe, resource_table)
-      |> LibPE.update_layout()
+      LibPE.set_resources(pe, resources)
       |> LibPE.update_checksum()
       |> LibPE.encode()
 
+    {:ok, pe2} = LibPE.parse_string(raw)
+    assert LibPE.Icon.get(LibPE.get_resources(pe2))
     File.write!("test/hello-out.exe", raw)
   end
 

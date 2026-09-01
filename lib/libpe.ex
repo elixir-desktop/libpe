@@ -271,7 +271,11 @@ defmodule LibPE do
     idx = Enum.find_index(sections, fn %LibPE.Section{name: name} -> name == ".rsrc" end)
 
     if idx == nil do
-      %LibPE{pe | coff_sections: sections ++ [%LibPE.Section{name: ".rsrc"}]}
+      # IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ
+      # Stored as an integer: SectionFlags is single-flag encode (ALIGN bits are not independent).
+      flags = Bitwise.bor(64, 1_073_741_824)
+
+      %LibPE{pe | coff_sections: sections ++ [%LibPE.Section{name: ".rsrc", flags: flags}]}
     else
       pe
     end
